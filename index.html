@@ -30,7 +30,14 @@ input,select{font-family:inherit;outline:none}
 .screen{display:none;width:100%;height:100%}.screen.active{display:flex}
 
 /* HOME */
-#home{flex-direction:column;align-items:center;justify-content:center;gap:20px;padding:40px;background:linear-gradient(180deg,#0b0f14 0%,#0f1820 100%)}
+#home{flex-direction:column;align-items:center;justify-content:center;gap:20px;padding:40px;background:linear-gradient(180deg,#0b0f14 0%,#0f1820 100%);overflow-y:auto;-webkit-overflow-scrolling:touch}
+#auth-section{display:flex;flex-direction:column;align-items:center;gap:8px;margin-top:4px}
+#auth-section .auth-login-btn{padding:10px 24px;border-radius:10px;background:var(--accbg);border:1px solid var(--acc);color:var(--acc);font-size:14px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:8px;transition:var(--tr);font-family:var(--fb)}
+#auth-section .auth-login-btn:hover{background:var(--acc);color:#0b0f14;box-shadow:var(--glow)}
+#auth-section .auth-user{display:flex;align-items:center;gap:8px;padding:8px 16px;background:var(--bg2);border:1px solid var(--brd);border-radius:10px}
+#auth-section .auth-user img{width:28px;height:28px;border-radius:50%;border:1px solid var(--brd)}
+#auth-section .auth-user span{font-size:12px;color:var(--t2)}
+#auth-section .auth-logout{padding:5px 12px;border-radius:6px;background:var(--bgc);border:1px solid var(--brd);color:var(--t2);font-size:11px;cursor:pointer;font-family:var(--fb)}
 .logo{font-family:var(--fd);font-size:56px;font-weight:700;letter-spacing:6px;color:var(--acc);text-shadow:0 0 40px rgba(0,201,120,.2)}.logo span{color:var(--t1)}
 .subtitle{font-size:12px;color:var(--t3);letter-spacing:3px;text-transform:uppercase;margin-top:-6px;font-weight:500}
 .hbtns{display:flex;flex-direction:column;gap:8px;width:360px;margin-top:24px}
@@ -158,9 +165,9 @@ input,select{font-family:inherit;outline:none}
 <body>
 
 <div id="home" class="screen active">
-  <div id="auth-bar" style="position:absolute;top:12px;right:16px;display:flex;align-items:center;gap:8px"></div>
   <div class="logo">STAT <span>IQ</span></div>
   <div class="subtitle">Basketball Stats Tracker</div>
+  <div id="auth-section"></div>
   <div class="hbtns">
     <button class="hbtn" onclick="openTeamSetup()"><div class="ic g">⚙</div>自チーム設定</button>
     <button class="hbtn" onclick="openOppManager()"><div class="ic r">👥</div>相手チーム管理</button>
@@ -1625,7 +1632,7 @@ async function exportBoxPDF(){
 </script>
 <script type="module">
 import{initializeApp}from'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
-import{getAuth,GoogleAuthProvider,signInWithPopup,onAuthStateChanged,signOut as fbSignOut,browserLocalPersistence,setPersistence}from'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
+import{getAuth,GoogleAuthProvider,signInWithPopup,signInWithRedirect,getRedirectResult,onAuthStateChanged,signOut as fbSignOut,browserLocalPersistence,setPersistence}from'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
 import{getFirestore,doc,setDoc,getDoc,onSnapshot}from'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 
 const firebaseConfig={
@@ -1643,19 +1650,34 @@ const db=getFirestore(app);
 let _fbUser=null,_unsub=null,_saving=false;
 
 function renderAuthBar(){
-  const bar=document.getElementById('auth-bar');if(!bar)return;
+  const sec=document.getElementById('auth-section');if(!sec)return;
   if(_fbUser){
-    bar.innerHTML=`<img src="${_fbUser.photoURL||''}" style="width:28px;height:28px;border-radius:50%;border:1px solid var(--brd)" onerror="this.style.display='none'"><span style="font-size:12px;color:var(--t2)">${_fbUser.displayName||''}</span><button style="padding:4px 10px;border-radius:5px;background:var(--bgc);border:1px solid var(--brd);color:var(--t2);font-size:11px;cursor:pointer" onclick="window._siqSignOut()">ログアウト</button>`;
+    sec.innerHTML=`<div class="auth-user"><img src="${_fbUser.photoURL||''}" onerror="this.style.display='none'"><span>${_fbUser.displayName||''}</span><button class="auth-logout" onclick="window._siqSignOut()">ログアウト</button></div>`;
   }else{
-    bar.innerHTML=`<button style="padding:8px 16px;border-radius:7px;background:var(--accbg);border:1px solid var(--acc);color:var(--acc);font-size:12px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:6px" onclick="window._siqSignIn()"><svg width="16" height="16" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20.1H42V20H24v8h11.3C33.9 33.6 29.4 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 8 3l5.7-5.7C34 6 29.3 4 24 4 13 4 4 13 4 24s9 20 20 20 20-9 20-20c0-1.3-.1-2.7-.4-3.9z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.3 15.3 18.8 12 24 12c3.1 0 5.8 1.2 8 3l5.7-5.7C34 6 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.2 26.7 36 24 36c-5.4 0-9.9-3.4-11.3-8.2l-6.5 5C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.1H42V20H24v8h11.3c-.8 2.2-2.2 4.1-4.1 5.6l6.2 5.2C36.7 39.5 44 34 44 24c0-1.3-.1-2.7-.4-3.9z"/></svg>Googleでログイン</button>`;
+    sec.innerHTML=`<button class="auth-login-btn" onclick="window._siqSignIn()"><svg width="18" height="18" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20.1H42V20H24v8h11.3C33.9 33.6 29.4 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 8 3l5.7-5.7C34 6 29.3 4 24 4 13 4 4 13 4 24s9 20 20 20 20-9 20-20c0-1.3-.1-2.7-.4-3.9z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.3 15.3 18.8 12 24 12c3.1 0 5.8 1.2 8 3l5.7-5.7C34 6 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.2 26.7 36 24 36c-5.4 0-9.9-3.4-11.3-8.2l-6.5 5C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.1H42V20H24v8h11.3c-.8 2.2-2.2 4.1-4.1 5.6l6.2 5.2C36.7 39.5 44 34 44 24c0-1.3-.1-2.7-.4-3.9z"/></svg>Googleでログイン</button>`;
   }
 }
+
+// Detect standalone PWA mode
+const _isPWA=window.matchMedia('(display-mode:standalone)').matches||window.navigator.standalone===true;
 
 // Expose sign-in/out IMMEDIATELY so onclick handlers work
 window._siqSignIn=async()=>{
   try{
     await setPersistence(auth,browserLocalPersistence);
-    await signInWithPopup(auth,new GoogleAuthProvider());
+    if(_isPWA){
+      // PWA standalone mode: popup is blocked, use redirect
+      await signInWithRedirect(auth,new GoogleAuthProvider());
+    }else{
+      // Normal browser: try popup first, fall back to redirect
+      try{
+        await signInWithPopup(auth,new GoogleAuthProvider());
+      }catch(popupErr){
+        if(popupErr.code==='auth/popup-blocked'||popupErr.code==='auth/popup-closed-by-user'||popupErr.code==='auth/cancelled-popup-request'){
+          await signInWithRedirect(auth,new GoogleAuthProvider());
+        }else{throw popupErr}
+      }
+    }
   }catch(e){console.error('Sign-in error:',e);alert('ログインに失敗しました: '+e.message)}
 };
 window._siqSignOut=async()=>{
@@ -1666,6 +1688,15 @@ window._siqSignOut=async()=>{
 
 // Render login button immediately
 renderAuthBar();
+
+// Handle redirect result (for PWA mode)
+getRedirectResult(auth).then(result=>{
+  if(result?.user){/* onAuthStateChanged will handle */}
+}).catch(e=>{
+  if(e.code!=='auth/no-current-user'){
+    console.error('Redirect result error:',e);
+  }
+});
 
 // Firestore data doc path
 function fbDocRef(){return doc(db,'statiq_data',_fbUser.uid)}
