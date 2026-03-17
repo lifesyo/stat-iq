@@ -161,6 +161,7 @@ canvas{display:block}
     <button class="hbtn" onclick="openOppManager()"><div class="ic r">👥</div>相手チーム管理</button>
     <button class="hbtn" onclick="openNewGame()"><div class="ic b">▶</div>新しい試合を開始</button>
     <button class="hbtn" onclick="showScreen('hist')"><div class="ic o">📊</div>試合履歴</button>
+    <button class="hbtn" onclick="showScreen('career')"><div class="ic g">📈</div>通算スタッツ</button>
   </div>
 </div>
 
@@ -174,9 +175,8 @@ canvas{display:block}
     <button class="tbb" onclick="prevQ()">◀</button><button class="tbb on" id="tb-q">Q1</button><button class="tbb" onclick="nextQ()">▶</button>
     <div style="width:1px;height:18px;background:var(--brd);margin:0 2px"></div>
     <button class="tbb" onclick="undoLast()">↩ 取消</button>
-    <button class="tbb" onclick="openSub('my')">🔄 自チーム</button>
-    <button class="tbb" onclick="openSub('opp')">🔄 相手</button>
     <button class="tbb" onclick="toggleBox()">📊 BOX</button>
+    <button class="tbb" onclick="rotateCourts()" id="btn-rot">⟳ 回転</button>
     <div class="tbs"></div>
     <button class="tbb" onclick="endGame()">■ 終了</button>
   </div>
@@ -197,6 +197,11 @@ canvas{display:block}
 <div id="hist" class="screen">
   <div class="hhdr"><h2>試合履歴</h2><button class="bk" onclick="showScreen('home')">← ホーム</button></div>
   <div class="ghl" id="hlist"><div class="empty">まだ試合データがありません</div></div>
+</div>
+
+<div id="career" class="screen" style="flex-direction:column;padding:20px 32px;overflow-y:auto">
+  <div class="hhdr"><h2 style="color:var(--acc)">通算スタッツ</h2><button class="bk" onclick="showScreen('home')">← ホーム</button></div>
+  <div id="career-ct"></div>
 </div>
 
 <!-- Modals -->
@@ -232,6 +237,7 @@ canvas{display:block}
 var myTeam={name:'',players:[]}, G=null, games=[], oppTeams=[];
 var selSide='my', selId=null, pending={my:null,opp:null}, cd={my:{},opp:{}};
 var bsQFilter='all', bsPlayerIdx={my:-1,opp:-1}, bsFlipChart=false;
+var courtRotation=0; // 0, 90, 180, 270
 
 // Persist
 function save(){localStorage.setItem('siq_t',JSON.stringify(myTeam));localStorage.setItem('siq_g',JSON.stringify(games));localStorage.setItem('siq_o',JSON.stringify(oppTeams));if(G)localStorage.setItem('siq_c',JSON.stringify(G))}
@@ -239,7 +245,7 @@ function load(){try{let t=localStorage.getItem('siq_t');if(t)myTeam=JSON.parse(t
 
 // Nav
 function showScreen(id){document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));document.getElementById(id).classList.add('active');
-  if(id==='hist')renderHist();if(id==='game'){renderPlayers();updateAll();requestAnimationFrame(()=>requestAnimationFrame(()=>{drawCourt('my');drawCourt('opp')}))}}
+  if(id==='hist')renderHist();if(id==='career')renderCareer();if(id==='game'){renderPlayers();updateAll();requestAnimationFrame(()=>requestAnimationFrame(()=>{drawCourt('my');drawCourt('opp')}))}}
 function openM(id){document.getElementById(id).classList.add('on')}
 function closeM(id){document.getElementById(id).classList.remove('on')}
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,6)}
@@ -305,11 +311,17 @@ function startGame(){
 function drawCourt(side){
   const cv=document.getElementById('cv-'+side),wrap=document.getElementById('cw-'+side),rect=wrap.getBoundingClientRect(),W=rect.width,H=rect.height;
   if(W<20||H<20)return;
+  const rot=courtRotation;
+  const isRotated=(rot===90||rot===270);
+  // For 90/270 rotation, swap the effective drawing dimensions
+  const drawW=isRotated?H:W, drawH=isRotated?W:H;
   cv.width=W*2;cv.height=H*2;cv.style.width=W+'px';cv.style.height=H+'px';
   const ctx=cv.getContext('2d');ctx.scale(2,2);
-  const PAD=6,pxX=(W-PAD*2)/15,pxY=(H-PAD*2)/14,px=Math.min(pxX,pxY);
-  const tW=15*px,tH=14*px,oX=(W-tW)/2,oY=(H-tH)/2;
-  cd[side]={px,oX,oY};
+  // Apply rotation around canvas center
+  if(rot){ctx.translate(W/2,H/2);ctx.rotate(rot*Math.PI/180);ctx.translate(-drawW/2,-drawH/2)}
+  const PAD=6,pxX=(drawW-PAD*2)/15,pxY=(drawH-PAD*2)/14,px=Math.min(pxX,pxY);
+  const tW=15*px,tH=14*px,oX=(drawW-tW)/2,oY=(drawH-tH)/2;
+  cd[side]={px,oX,oY,rot,drawW,drawH,canvasW:W,canvasH:H};
   const TX=m=>oX+m*px, TY=m=>oY+(14-m)*px;
 
   // Wood floor
@@ -695,7 +707,18 @@ function getDisplayZone(mx,my){
 ['my','opp'].forEach(side=>{document.getElementById('cv-'+side).addEventListener('click',function(e){
   if(!G)return;if(selSide!==side){alert((side==='my'?'自':'相手')+'チームの選手を選択');return}if(selId===null){alert('選手を選択');return}
   const r=this.getBoundingClientRect(),d=cd[side];if(!d.px)return;
-  const mx=(e.clientX-r.left-d.oX)/d.px,my=14-(e.clientY-r.top-d.oY)/d.px;
+  // Canvas pixel coords (relative to element)
+  let cpx=e.clientX-r.left, cpy=e.clientY-r.top;
+  // Reverse rotation to get drawing-space coords
+  const rot=d.rot||0;
+  if(rot){
+    const cxC=d.canvasW/2, cyC=d.canvasH/2;
+    const dx=cpx-cxC, dy=cpy-cyC;
+    const rad=-rot*Math.PI/180;
+    cpx=dx*Math.cos(rad)-dy*Math.sin(rad)+d.drawW/2;
+    cpy=dx*Math.sin(rad)+dy*Math.cos(rad)+d.drawH/2;
+  }
+  const mx=(cpx-d.oX)/d.px,my=14-(cpy-d.oY)/d.px;
   if(mx<0||mx>15||my<0||my>14)return;
   pending[side]={x:mx,y:my,zone:getZone(mx,my),is3:is3pt(mx,my)};
   const pop=document.getElementById('sp-'+side),cw=document.getElementById('cw-'+side),cr=cw.getBoundingClientRect();
@@ -714,6 +737,7 @@ function selAndStat(side,type,pts){if(selSide!==side){alert((side==='my'?'自':'
 function undoLast(){if(!G||!G.events.length)return;const l=G.events.pop();if(l.pts&&l.made)(l.side==='my'?G.myQS:G.oppQS)[l.q]-=l.pts;save();drawCourt('my');drawCourt('opp');updateAll()}
 function prevQ(){if(!G||G.cq<=0)return;G.cq--;save();updateQUI()}
 function nextQ(){if(!G||G.cq>=G.quarters-1)return;G.cq++;save();updateQUI()}
+function rotateCourts(){courtRotation=(courtRotation+90)%360;drawCourt('my');drawCourt('opp')}
 function updateQUI(){if(!G)return;const l=G.quarters===2?(G.cq===0?'前半':'後半'):('Q'+(G.cq+1));document.getElementById('sb-qn').textContent=l;document.getElementById('tb-q').textContent=l}
 
 // Players
@@ -954,6 +978,114 @@ function bsNavPlayer(side,dir){
   let idx=bsPlayerIdx[side]+dir;
   if(idx<-1)idx=ps.length-1;if(idx>=ps.length)idx=-1;
   bsPlayerIdx[side]=idx;renderBox();
+}
+
+// ===== CAREER STATS =====
+function renderCareer(){
+  const ct=document.getElementById('career-ct');
+  if(!games.length){ct.innerHTML='<div class="empty">まだ試合データがありません</div>';return}
+  const nG=games.length;
+
+  // Gather stats for each player across all games
+  function gatherPlayerStats(){
+    const pMap={};
+    games.forEach(g=>{
+      if(!g.data||!g.data.events)return;
+      const ps=myTeam.players;
+      ps.forEach((p,pi)=>{
+        const key=p.number+'_'+p.name;
+        if(!pMap[key])pMap[key]={number:p.number,name:p.name,gp:0,pts:0,fgm:0,fga:0,tpm:0,tpa:0,ftm:0,fta:0,or:0,dr:0,reb:0,ast:0,stl:0,blk:0,to:0,pf:0,def:0,eff:0};
+        const ev=g.data.events.filter(e=>e.side==='my'&&e.pid===pi);
+        if(!ev.length)return;
+        pMap[key].gp++;
+        const s2=ev.filter(e=>e.type==='SHOT'&&e.st==='2PT'),s3=ev.filter(e=>e.type==='SHOT'&&e.st==='3PT');
+        const fgm=s2.filter(e=>e.made).length+s3.filter(e=>e.made).length,fga=s2.length+s3.length;
+        const tpm=s3.filter(e=>e.made).length,tpa=s3.length;
+        const ftm=ev.filter(e=>e.type==='FT_MADE').length,fta=ftm+ev.filter(e=>e.type==='FT_MISS').length;
+        const pts=ev.reduce((s,e)=>s+(e.pts||0),0);
+        const or_=ev.filter(e=>e.type==='OR').length,dr_=ev.filter(e=>e.type==='DR').length;
+        const ast=ev.filter(e=>e.type==='AST').length,stl=ev.filter(e=>e.type==='STL').length;
+        const blk=ev.filter(e=>e.type==='BLK').length,to_=ev.filter(e=>e.type==='TO').length;
+        const pf=ev.filter(e=>e.type==='PF').length,def_=ev.filter(e=>e.type==='DEF').length;
+        pMap[key].pts+=pts;pMap[key].fgm+=fgm;pMap[key].fga+=fga;pMap[key].tpm+=tpm;pMap[key].tpa+=tpa;
+        pMap[key].ftm+=ftm;pMap[key].fta+=fta;pMap[key].or+=or_;pMap[key].dr+=dr_;pMap[key].reb+=(or_+dr_);
+        pMap[key].ast+=ast;pMap[key].stl+=stl;pMap[key].blk+=blk;pMap[key].to+=to_;pMap[key].pf+=pf;pMap[key].def+=def_;
+        const eff=pts+(or_+dr_)+ast+stl+blk-(fga-fgm)-(fta-ftm)-to_;pMap[key].eff+=eff;
+      });
+    });
+    return Object.values(pMap).sort((a,b)=>b.pts-a.pts);
+  }
+
+  // Team totals
+  function teamTotals(){
+    let t={gp:nG,pts:0,fgm:0,fga:0,tpm:0,tpa:0,ftm:0,fta:0,or:0,dr:0,reb:0,ast:0,stl:0,blk:0,to:0,pf:0,def:0,eff:0,myScore:0,oppScore:0};
+    games.forEach(g=>{
+      t.myScore+=g.myScore||0;t.oppScore+=g.oppScore||0;
+      if(!g.data||!g.data.events)return;
+      g.data.events.filter(e=>e.side==='my').forEach(e=>{
+        t.pts+=(e.pts||0);
+        if(e.type==='SHOT'){t.fga++;if(e.made)t.fgm++;if(e.st==='3PT'){t.tpa++;if(e.made)t.tpm++}}
+        if(e.type==='FT_MADE'){t.ftm++;t.fta++}if(e.type==='FT_MISS')t.fta++;
+        if(e.type==='OR')t.or++;if(e.type==='DR')t.dr++;if(e.type==='OR'||e.type==='DR')t.reb++;
+        if(e.type==='AST')t.ast++;if(e.type==='STL')t.stl++;if(e.type==='BLK')t.blk++;
+        if(e.type==='TO')t.to++;if(e.type==='PF')t.pf++;if(e.type==='DEF')t.def++;
+      });
+    });
+    t.eff=t.pts+t.reb+t.ast+t.stl+t.blk-(t.fga-t.fgm)-(t.fta-t.ftm)-t.to;
+    return t;
+  }
+
+  const pStats=gatherPlayerStats(),tt=teamTotals();
+  const fgp=tt.fga?Math.round(tt.fgm/tt.fga*100):0,tpp=tt.tpa?Math.round(tt.tpm/tt.tpa*100):0,ftp=tt.fta?Math.round(tt.ftm/tt.fta*100):0;
+  const avg=v=>nG?(v/nG).toFixed(1):'0';
+
+  let h=`<div style="margin-bottom:20px">
+    <div style="font-family:var(--fd);font-size:16px;color:var(--my);margin-bottom:6px">${myTeam.name||'MY TEAM'} — ${nG}試合</div>
+    <div style="display:flex;gap:4px;font-size:11px;color:var(--t2);flex-wrap:wrap;margin-bottom:10px">
+      <span>${tt.myScore}得点 / ${tt.oppScore}失点</span>
+      <span>（勝率: ${games.filter(g=>g.myScore>g.oppScore).length}勝${games.filter(g=>g.myScore<g.oppScore).length}敗）</span>
+    </div>
+  </div>`;
+
+  // Team total & avg summary
+  h+=`<div style="font-family:var(--fd);font-size:14px;color:var(--acc);margin-bottom:6px;border-bottom:1px solid var(--brd);padding-bottom:4px">チーム合計 / 1試合平均</div>`;
+  h+=`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(80px,1fr));gap:6px;margin-bottom:20px">`;
+  const teamItems=[['PTS',tt.pts],['FGM/A',`${tt.fgm}/${tt.fga}`],['FG%',fgp+'%'],['3PM/A',`${tt.tpm}/${tt.tpa}`],['3P%',tpp+'%'],['FTM/A',`${tt.ftm}/${tt.fta}`],['FT%',ftp+'%'],['REB',tt.reb],['AST',tt.ast],['STL',tt.stl],['BLK',tt.blk],['TO',tt.to]];
+  teamItems.forEach(([lbl,val])=>{
+    const numVal=typeof val==='string'?null:val;
+    const avgStr=numVal!==null?avg(numVal):'';
+    h+=`<div style="background:var(--bgc);border:1px solid var(--brd);border-radius:6px;padding:8px;text-align:center">
+      <div style="font-size:9px;color:var(--t3);font-weight:600">${lbl}</div>
+      <div style="font-family:var(--fd);font-size:16px;font-weight:700;color:var(--t1)">${val}</div>
+      ${avgStr?`<div style="font-size:9px;color:var(--acc)">Avg ${avgStr}</div>`:''}
+    </div>`;
+  });
+  h+=`</div>`;
+
+  // Player stats table — totals
+  h+=`<div style="font-family:var(--fd);font-size:14px;color:var(--acc);margin-bottom:6px;border-bottom:1px solid var(--brd);padding-bottom:4px">選手別 — 累計</div>`;
+  h+=buildCareerTable(pStats,false);
+
+  // Player stats table — per game avg
+  h+=`<div style="font-family:var(--fd);font-size:14px;color:var(--acc);margin:16px 0 6px;border-bottom:1px solid var(--brd);padding-bottom:4px">選手別 — 1試合平均</div>`;
+  h+=buildCareerTable(pStats,true);
+
+  ct.innerHTML=h;
+}
+
+function buildCareerTable(pStats,isAvg){
+  const cols=['選手','GP','PTS','FG','FG%','3P','3P%','FT','REB','AST','STL','BLK','TO','PF','EFF'];
+  let h=`<div style="overflow-x:auto;margin-bottom:12px"><table class="bt"><thead><tr>`;
+  cols.forEach(c=>{h+=`<th>${c}</th>`});
+  h+=`</tr></thead><tbody>`;
+  pStats.forEach(p=>{
+    const gp=p.gp||1;
+    const d=v=>isAvg?(v/gp).toFixed(1):v;
+    const fgp=p.fga?Math.round(p.fgm/p.fga*100):0,tpp=p.tpa?Math.round(p.tpm/p.tpa*100):0;
+    h+=`<tr><td>#${p.number} ${p.name}</td><td>${p.gp}</td><td class="${p.pts>=10?'hi':''}">${d(p.pts)}</td><td>${isAvg?d(p.fgm)+'/'+d(p.fga):`${p.fgm}/${p.fga}`}</td><td>${fgp}%</td><td>${isAvg?d(p.tpm)+'/'+d(p.tpa):`${p.tpm}/${p.tpa}`}</td><td>${tpp}%</td><td>${isAvg?d(p.ftm)+'/'+d(p.fta):`${p.ftm}/${p.fta}`}</td><td>${d(p.reb)}</td><td>${d(p.ast)}</td><td>${d(p.stl)}</td><td>${d(p.blk)}</td><td>${d(p.to)}</td><td>${d(p.pf)}</td><td style="font-weight:700">${d(p.eff)}</td></tr>`;
+  });
+  h+=`</tbody></table></div>`;
+  return h;
 }
 
 // End / History
