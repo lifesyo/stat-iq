@@ -200,7 +200,23 @@ input,select{font-family:inherit;outline:none}
 
 <div id="hist" class="screen">
   <div class="hhdr"><h2>試合履歴</h2><button class="bk" onclick="showScreen('home')">← ホーム</button></div>
-  <div class="ghl" id="hlist"><div class="empty">まだ試合データがありません</div></div>
+  <div style="display:flex;flex:1;overflow:hidden;gap:0">
+    <div class="ghl" id="hlist" style="flex:1;padding-right:8px"><div class="empty">まだ試合データがありません</div></div>
+    <div id="hist-edit" style="width:280px;flex-shrink:0;background:var(--bg2);border-left:1px solid var(--brd);padding:16px;overflow-y:auto;display:none">
+      <div style="font-family:var(--fd);font-size:14px;font-weight:700;color:var(--acc);margin-bottom:12px;letter-spacing:1px">試合情報を編集</div>
+      <input type="hidden" id="he-id">
+      <label style="display:block;font-size:10px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:4px">日付</label>
+      <input type="date" id="he-date" style="width:100%;padding:10px;background:var(--bg3);border:1px solid var(--brd);border-radius:8px;color:var(--t1);font-size:14px;margin-bottom:12px;font-family:inherit">
+      <label style="display:block;font-size:10px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:4px">対戦相手</label>
+      <input type="text" id="he-opp" placeholder="対戦相手" style="width:100%;padding:10px;background:var(--bg3);border:1px solid var(--brd);border-radius:8px;color:var(--t1);font-size:14px;margin-bottom:12px;font-family:inherit">
+      <label style="display:block;font-size:10px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:4px">試合名</label>
+      <input type="text" id="he-name" placeholder="例: 春季大会1回戦" style="width:100%;padding:10px;background:var(--bg3);border:1px solid var(--brd);border-radius:8px;color:var(--t1);font-size:14px;margin-bottom:16px;font-family:inherit">
+      <div style="display:flex;gap:6px">
+        <button class="bp" onclick="saveGameEdit()" style="flex:1">保存</button>
+        <button class="bs2" onclick="closeGameEdit()" style="flex:1">閉じる</button>
+      </div>
+    </div>
+  </div>
 </div>
 
 <div id="career" class="screen" style="flex-direction:column;padding:20px 32px;overflow-y:auto">
@@ -1276,17 +1292,31 @@ function ldG(id){const g=games.find(g=>g.id===id);if(!g||!g.data)return;G=JSON.p
 function editGameInfo(id,e){
   e.stopPropagation();
   const g=games.find(g=>g.id===id);if(!g)return;
-  const newDate=prompt('日付 (YYYY-MM-DD):',g.date||'');
-  if(newDate===null)return;
-  const newOpp=prompt('対戦相手:',g.opponent||'');
-  if(newOpp===null)return;
-  const newName=prompt('試合名 (例: 練習試合, 春季大会1回戦):',g.gameName||'');
-  if(newName===null)return;
-  g.date=newDate||g.date;
-  if(newOpp)g.opponent=newOpp;
-  g.gameName=newName;
-  if(g.data){g.data.date=g.date;if(newOpp)g.data.opponent=newOpp}
+  document.getElementById('he-id').value=id;
+  document.getElementById('he-date').value=g.date||'';
+  document.getElementById('he-opp').value=g.opponent||'';
+  document.getElementById('he-name').value=g.gameName||'';
+  document.getElementById('hist-edit').style.display='block';
+  // Highlight selected
+  document.querySelectorAll('#hlist .ghi').forEach(el=>el.style.borderColor='');
+  if(e.target.closest){const row=e.target.closest('.ghi');if(row)row.style.borderColor='var(--acc)'}
+}
+function saveGameEdit(){
+  const id=document.getElementById('he-id').value;
+  const g=games.find(g=>g.id===id);if(!g)return;
+  const d=document.getElementById('he-date').value;
+  const o=document.getElementById('he-opp').value;
+  const n=document.getElementById('he-name').value;
+  if(d)g.date=d;
+  if(o)g.opponent=o;
+  g.gameName=n;
+  if(g.data){if(d)g.data.date=d;if(o)g.data.opponent=o}
   save();renderHist();
+  document.getElementById('hist-edit').style.display='block'; // keep panel open
+}
+function closeGameEdit(){
+  document.getElementById('hist-edit').style.display='none';
+  document.querySelectorAll('#hlist .ghi').forEach(el=>el.style.borderColor='');
 }
 
 window.addEventListener('resize',()=>{if(G){drawCourt('my');drawCourt('opp')}});
