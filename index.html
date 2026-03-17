@@ -1112,124 +1112,171 @@ load();if(G){selSide='my';selId=G.myOC[0]||0;showScreen('game')}
 async function exportBoxPDF(){
   if(!G){alert('試合データがありません');return}
   if(!window.jspdf||!window.jspdf.jsPDF){alert('PDF機能を読み込み中です。少し待ってから再度お試しください。');return}
-  const{jsPDF}=window.jspdf;
-  const pdf=new jsPDF({orientation:'landscape',unit:'mm',format:'a4'});
-  const pw=297,ph=210;
-  const myLabel=myTeam.name||'MY TEAM',oppLabel=G.opponent||'OPP';
-  const myScore=G.myQS.reduce((a,b)=>a+b,0),oppScore=G.oppQS.reduce((a,b)=>a+b,0);
+  var JP=window.jspdf.jsPDF;
+  var pdf=new JP({orientation:'landscape',unit:'mm',format:'a4'});
+  var pw=297,ph=210;
+  var myLabel=myTeam.name||'MY TEAM',oppLabel=G.opponent||'OPP';
+  var myScore=G.myQS.reduce(function(a,b){return a+b},0);
+  var oppScore=G.oppQS.reduce(function(a,b){return a+b},0);
 
-  // High-res: 6px per mm = 1782x1260 canvas
-  const S=6;
-  const PW=pw*S, PH=ph*S;
+  // 6px per mm = 1782x1260 hi-res canvas
+  var S=6, PW=pw*S, PH=ph*S;
 
-  function createPageCanvas(){
-    const c=document.createElement('canvas');c.width=PW;c.height=PH;
-    const x=c.getContext('2d');
-    x.fillStyle='#0a0e1a';x.fillRect(0,0,PW,PH);
-    return{c,x};
+  function mkPage(){
+    var c=document.createElement('canvas');c.width=PW;c.height=PH;
+    var x=c.getContext('2d');
+    x.fillStyle='#0d1117';x.fillRect(0,0,PW,PH);
+    return{c:c,x:x};
   }
-  function addCanvasPage(canvas,isFirst){
-    if(!isFirst)pdf.addPage();
-    pdf.addImage(canvas.toDataURL('image/png'),0,0,pw,ph);
+  function addPage(cv,first){
+    if(!first)pdf.addPage();
+    pdf.addImage(cv.toDataURL('image/png'),0,0,pw,ph);
   }
+  // mm to px
+  function mm(v){return Math.round(v*S)}
 
-  // ===== PAGE 1 =====
-  const{c:c1,x:x1}=createPageCanvas();
+  // ===== PAGE 1: Header + Heatmaps + BOX Tables =====
+  var p1=mkPage(), c1=p1.x;
+  c1.textBaseline='alphabetic';
 
-  // Title block
-  x1.textAlign='center';x1.textBaseline='alphabetic';
-  x1.font='700 '+Math.round(14*S)+'px Oswald,sans-serif';x1.fillStyle='#00e68a';
-  x1.fillText('STAT IQ \u2014 BOX SCORE',PW/2,10*S);
-  x1.font='500 '+Math.round(8*S)+'px Inter,sans-serif';x1.fillStyle='#c8c8d0';
-  x1.fillText(myLabel+'  '+myScore+' - '+oppScore+'  '+oppLabel,PW/2,17*S);
-  x1.font='400 '+Math.round(6*S)+'px Inter,sans-serif';x1.fillStyle='#787890';
-  x1.fillText(G.date||'',PW/2,22*S);
+  // -- Title --
+  c1.textAlign='center';
+  c1.font='700 '+mm(11)+'px Oswald,sans-serif';c1.fillStyle='#00e68a';
+  c1.fillText('STAT IQ \u2014 BOX SCORE',PW/2,mm(9));
+  c1.font='500 '+mm(6)+'px Inter,sans-serif';c1.fillStyle='#c0c0cc';
+  c1.fillText(myLabel+'  '+myScore+' - '+oppScore+'  '+oppLabel,PW/2,mm(15));
+  c1.font='400 '+mm(4.5)+'px Inter,sans-serif';c1.fillStyle='#666680';
+  c1.fillText(G.date||'',PW/2,mm(19));
 
-  // Team heatmaps
+  // -- Team Heatmaps --
   var hmMy=drawZoneChart(520,310,getFilteredShots('my',-1,'all'));
   var hmOpp=drawZoneChart(520,310,getFilteredShots('opp',-1,'all'));
-  x1.drawImage(hmMy,8*S,27*S,125*S,72*S);
-  x1.drawImage(hmOpp,(pw-8-125)*S,27*S,125*S,72*S);
-  x1.textAlign='left';x1.font='600 '+Math.round(7*S)+'px Oswald,sans-serif';x1.fillStyle='#00e68a';
-  x1.fillText(myLabel,8*S,26*S);
-  x1.textAlign='right';x1.fillStyle='#ff8844';
-  x1.fillText(oppLabel,(pw-8)*S,26*S);
+  c1.drawImage(hmMy,mm(8),mm(24),mm(120),mm(70));
+  c1.drawImage(hmOpp,mm(pw-8-120),mm(24),mm(120),mm(70));
+  // Labels above charts
+  c1.textAlign='left';c1.font='600 '+mm(5.5)+'px Oswald,sans-serif';c1.fillStyle='#00e68a';
+  c1.fillText(myLabel,mm(8),mm(23));
+  c1.textAlign='right';c1.fillStyle='#ff8844';
+  c1.fillText(oppLabel,mm(pw-8),mm(23));
 
-  // Table helper
-  function drawTbl(ctx,yMm,ps,side,qf){
+  // -- BOX Table Function --
+  function drawTbl(ctx,yStart,ps,side,qf){
     var all=ps.map(function(_,i){return Object.assign({i:i},calcPS(side,i,qf))});
     var tot=all.reduce(function(t,s){Object.keys(s).forEach(function(k){if(k!=='i')t[k]=(t[k]||0)+s[k]});return t},{});
-    var hdr=['選手','PTS','FG','FG%','3P','3P%','FT','OR','DR','REB','AST','STL','BLK','TO','PF','EFF'];
-    var cw=[32,10,14,12,14,12,14,8,8,10,10,10,10,8,8,10];
-    var mgMm=8, rH=3.2;
-    var y=yMm;
-    ctx.font='700 '+Math.round(4.5*S)+'px Inter,sans-serif';ctx.fillStyle='#787890';ctx.textBaseline='alphabetic';
-    var rx=mgMm;
-    hdr.forEach(function(h,i){ctx.textAlign=i===0?'left':'center';ctx.fillText(h,(i===0?rx:rx+cw[i]/2)*S,y*S);rx+=cw[i]});
-    y+=1;ctx.strokeStyle='#3c4664';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(mgMm*S,y*S);ctx.lineTo((mgMm+cw.reduce(function(a,b){return a+b},0))*S,y*S);ctx.stroke();
+    var hdr=['','PTS','FG','FG%','3P','3P%','FT','OR','DR','REB','AST','STL','BLK','TO','PF','EFF'];
+    // Column widths in mm
+    var cw=[28,9,13,11,13,11,13,7,7,9,9,9,9,7,7,9];
+    var mg=8, rH=2.8, y=yStart;
+
+    // Header
+    ctx.font='700 '+mm(3.2)+'px Inter,sans-serif';ctx.fillStyle='#606880';ctx.textBaseline='alphabetic';
+    var rx=mg;
+    hdr.forEach(function(h,i){ctx.textAlign=i===0?'left':'center';ctx.fillText(h,mm(i===0?rx:rx+cw[i]/2),mm(y));rx+=cw[i]});
+    y+=0.8;
+    ctx.strokeStyle='#2a3050';ctx.lineWidth=1;
+    ctx.beginPath();ctx.moveTo(mm(mg),mm(y));ctx.lineTo(mm(mg+cw.reduce(function(a,b){return a+b},0)),mm(y));ctx.stroke();
     y+=rH;
-    ctx.font='500 '+Math.round(3.8*S)+'px Inter,sans-serif';ctx.fillStyle='#c8c8d0';
+
+    // Rows
+    ctx.font='400 '+mm(2.8)+'px Inter,sans-serif';ctx.fillStyle='#b8b8c8';
     all.forEach(function(s){
       var p=ps[s.i],eff=calcEff(s);
-      var fgp=s.fga?Math.round(s.fgm/s.fga*100):0,tpp=s.tpa?Math.round(s.tpm/s.tpa*100):0;
+      var fgp=s.fga?Math.round(s.fgm/s.fga*100):0;
+      var tpp=s.tpa?Math.round(s.tpm/s.tpa*100):0;
       var row=['#'+p.number+' '+p.name,s.pts,s.fgm+'/'+s.fga,fgp+'%',s.tpm+'/'+s.tpa,tpp+'%',s.ftm+'/'+s.fta,s.or,s.dr,s.reb,s.ast,s.stl,s.blk,s.to,s.pf,eff];
-      rx=mgMm;row.forEach(function(v,i){ctx.textAlign=i===0?'left':'center';ctx.fillText(String(v),(i===0?rx:rx+cw[i]/2)*S,y*S);rx+=cw[i]});
+      rx=mg;
+      row.forEach(function(v,i){
+        ctx.textAlign=i===0?'left':'center';
+        ctx.fillText(String(v),mm(i===0?rx:rx+cw[i]/2),mm(y));
+        rx+=cw[i];
+      });
       y+=rH;
     });
-    ctx.strokeStyle='#00e68a';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(mgMm*S,(y-rH/2)*S);ctx.lineTo((mgMm+cw.reduce(function(a,b){return a+b},0))*S,(y-rH/2)*S);ctx.stroke();
-    var teff=calcEff(tot),tfgp=tot.fga?Math.round(tot.fgm/tot.fga*100):0,ttp=tot.tpa?Math.round(tot.tpm/tot.tpa*100):0;
-    ctx.font='700 '+Math.round(3.8*S)+'px Inter,sans-serif';ctx.fillStyle='#00e68a';
+
+    // Total row
+    y-=0.5;
+    ctx.strokeStyle='#00e68a';ctx.lineWidth=1;
+    ctx.beginPath();ctx.moveTo(mm(mg),mm(y));ctx.lineTo(mm(mg+cw.reduce(function(a,b){return a+b},0)),mm(y));ctx.stroke();
+    y+=0.5;
+    var teff=calcEff(tot);
+    var tfgp=tot.fga?Math.round(tot.fgm/tot.fga*100):0;
+    var ttp=tot.tpa?Math.round(tot.tpm/tot.tpa*100):0;
+    ctx.font='700 '+mm(2.8)+'px Inter,sans-serif';ctx.fillStyle='#00e68a';
     var totR=['TOTAL',tot.pts||0,(tot.fgm||0)+'/'+(tot.fga||0),tfgp+'%',(tot.tpm||0)+'/'+(tot.tpa||0),ttp+'%',(tot.ftm||0)+'/'+(tot.fta||0),tot.or||0,tot.dr||0,tot.reb||0,tot.ast||0,tot.stl||0,tot.blk||0,tot.to||0,tot.pf||0,teff];
-    rx=mgMm;totR.forEach(function(v,i){ctx.textAlign=i===0?'left':'center';ctx.fillText(String(v),(i===0?rx:rx+cw[i]/2)*S,(y+1)*S);rx+=cw[i]});
-    return y+4;
+    rx=mg;
+    totR.forEach(function(v,i){
+      ctx.textAlign=i===0?'left':'center';
+      ctx.fillText(String(v),mm(i===0?rx:rx+cw[i]/2),mm(y+rH*0.8));
+      rx+=cw[i];
+    });
+    return y+rH+2;
   }
 
-  var ty=103;
-  x1.textAlign='left';x1.font='600 '+Math.round(7*S)+'px Oswald,sans-serif';x1.fillStyle='#00e68a';
-  x1.fillText(myLabel,8*S,ty*S);ty+=3.5;
-  ty=drawTbl(x1,ty,myTeam.players,'my','all');
-  ty+=2;
-  x1.fillStyle='#ff8844';x1.font='600 '+Math.round(7*S)+'px Oswald,sans-serif';
-  x1.fillText(oppLabel,8*S,ty*S);ty+=3.5;
-  drawTbl(x1,ty,G.oppPlayers,'opp','all');
-  addCanvasPage(c1,true);
+  // Draw both team tables
+  var ty=97;
+  c1.textAlign='left';c1.font='600 '+mm(5.5)+'px Oswald,sans-serif';c1.fillStyle='#00e68a';
+  c1.fillText(myLabel,mm(8),mm(ty));ty+=3;
+  ty=drawTbl(c1,ty,myTeam.players,'my','all');
+  ty+=1.5;
+  c1.fillStyle='#ff8844';c1.font='600 '+mm(5.5)+'px Oswald,sans-serif';
+  c1.fillText(oppLabel,mm(8),mm(ty));ty+=3;
+  drawTbl(c1,ty,G.oppPlayers,'opp','all');
 
-  // ===== Player chart pages =====
+  addPage(p1.c,true);
+
+  // ===== PAGE 2+: Player charts (ONLY players with stats) =====
   function addPlayerPages(ps,side,label,accent){
+    // Filter to players who have at least 1 event
+    var active=[];
+    ps.forEach(function(p,i){
+      var shots=getFilteredShots(side,i,'all');
+      var st=calcPS(side,i,'all');
+      var hasData=shots.length>0||st.pts>0||st.reb>0||st.ast>0||st.stl>0||st.blk>0||st.to>0||st.pf>0||st.def>0;
+      if(hasData)active.push({p:p,idx:i});
+    });
+    if(!active.length)return;
+
     var perPage=4,pc,px2;
-    for(var pi=0;pi<ps.length;pi++){
-      if(pi%perPage===0){
-        if(pc)addCanvasPage(pc,false);
-        var r=createPageCanvas();pc=r.c;px2=r.x;
-        px2.textAlign='center';px2.textBaseline='alphabetic';
-        px2.font='700 '+Math.round(10*S)+'px Oswald,sans-serif';px2.fillStyle=accent;
-        px2.fillText(label+' \u2014 選手別シュートチャート',PW/2,9*S);
+    for(var ai=0;ai<active.length;ai++){
+      if(ai%perPage===0){
+        if(pc)addPage(pc,false);
+        var r=mkPage();pc=r.c;px2=r.x;
+        px2.textBaseline='alphabetic';px2.textAlign='center';
+        px2.font='700 '+mm(9)+'px Oswald,sans-serif';px2.fillStyle=accent;
+        px2.fillText(label+' \u2014 \u9078\u624b\u5225\u30b7\u30e5\u30fc\u30c8\u30c1\u30e3\u30fc\u30c8',PW/2,mm(8));
       }
-      var p=ps[pi],slot=pi%perPage;
+      var ap=active[ai],p=ap.p,pi=ap.idx;
+      var slot=ai%perPage;
       var col=slot%2,row=Math.floor(slot/2);
-      var bx=10+col*143,by=16+row*95;
+      var bx=10+col*145,by=15+row*96;
+
       var pShots=getFilteredShots(side,pi,'all');
       var pStats=calcPS(side,pi,'all');
       var fgp=pStats.fga?Math.round(pStats.fgm/pStats.fga*100):0;
       var tpp=pStats.tpa?Math.round(pStats.tpm/pStats.tpa*100):0;
-      px2.textAlign='left';px2.textBaseline='alphabetic';
-      px2.font='600 '+Math.round(7*S)+'px Oswald,sans-serif';px2.fillStyle=accent;
-      px2.fillText('#'+p.number+' '+p.name,bx*S,by*S);
-      px2.font='500 '+Math.round(4*S)+'px Inter,sans-serif';px2.fillStyle='#b0b0b8';
-      px2.fillText('PTS:'+pStats.pts+'  FG:'+pStats.fgm+'/'+pStats.fga+'('+fgp+'%)  3P:'+pStats.tpm+'/'+pStats.tpa+'('+tpp+'%)  REB:'+pStats.reb+'  AST:'+pStats.ast,bx*S,(by+4)*S);
-      var pcv=drawZoneChart(400,260,pShots);
-      var dcv=drawShotDots(260,220,pShots,side==='my'?'rgba(0,230,138,.8)':'rgba(255,136,68,.8)');
-      px2.drawImage(pcv,bx*S,(by+7)*S,80*S,50*S);
-      px2.drawImage(dcv,(bx+84)*S,(by+7)*S,50*S,42*S);
+
+      // Player name
+      px2.textAlign='left';
+      px2.font='600 '+mm(6)+'px Oswald,sans-serif';px2.fillStyle=accent;
+      px2.fillText('#'+p.number+' '+p.name,mm(bx),mm(by));
+
+      // Stats summary
+      px2.font='500 '+mm(3.5)+'px Inter,sans-serif';px2.fillStyle='#9898a8';
+      px2.fillText('PTS:'+pStats.pts+'  FG:'+pStats.fgm+'/'+pStats.fga+'('+fgp+'%)  3P:'+pStats.tpm+'/'+pStats.tpa+'('+tpp+'%)  REB:'+pStats.reb+'  AST:'+pStats.ast,mm(bx),mm(by+4));
+
+      // Zone chart + dot chart
+      var pcv=drawZoneChart(420,270,pShots);
+      var dcv=drawShotDots(280,230,pShots,side==='my'?'rgba(0,230,138,.8)':'rgba(255,136,68,.8)');
+      px2.drawImage(pcv,mm(bx),mm(by+7),mm(82),mm(52));
+      px2.drawImage(dcv,mm(bx+86),mm(by+7),mm(52),mm(44));
     }
-    if(pc)addCanvasPage(pc,false);
+    if(pc)addPage(pc,false);
   }
   addPlayerPages(myTeam.players,'my',myLabel,'#00e68a');
   addPlayerPages(G.oppPlayers,'opp',oppLabel,'#ff8844');
 
   var fn='StatIQ_'+(G.date||'game')+'_'+myLabel+'_vs_'+oppLabel+'.pdf';
-  fn=fn.replace(/\s/g,'_');
-  pdf.save(fn);
+  pdf.save(fn.replace(/\s/g,'_'));
 }
 
 // ============================================================
