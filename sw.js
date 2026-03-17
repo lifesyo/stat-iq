@@ -1,4 +1,4 @@
-const CACHE = 'statiq-v3';
+const CACHE = 'statiq-v4';
 const ASSETS = [
   './',
   './index.html'

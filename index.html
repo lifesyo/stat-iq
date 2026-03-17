@@ -1637,7 +1637,7 @@ import{getFirestore,doc,setDoc,getDoc,onSnapshot}from'https://www.gstatic.com/fi
 
 const firebaseConfig={
   apiKey:"AIzaSyBO2_N8gi_fGhKv7cQv-yTMvR329d2TLSw",
-  authDomain:"animation-50e1f.firebaseapp.com",
+  authDomain:"stat-iq.vercel.app",
   projectId:"animation-50e1f",
   storageBucket:"animation-50e1f.firebasestorage.app",
   messagingSenderId:"498744153399",
@@ -1665,20 +1665,23 @@ const _isPWA=window.matchMedia('(display-mode:standalone)').matches||window.navi
 window._siqSignIn=async()=>{
   try{
     await setPersistence(auth,browserLocalPersistence);
-    if(_isPWA){
-      // PWA standalone mode: popup is blocked, use redirect
-      await signInWithRedirect(auth,new GoogleAuthProvider());
-    }else{
-      // Normal browser: try popup first, fall back to redirect
+    // Always try popup first — it works in Safari and some PWA contexts
+    await signInWithPopup(auth,new GoogleAuthProvider());
+  }catch(e){
+    console.error('Sign-in error:',e);
+    if(_isPWA&&(e.code==='auth/popup-blocked'||e.code==='auth/popup-closed-by-user'||e.code==='auth/cancelled-popup-request'||e.code==='auth/internal-error')){
+      // PWA popup failed — try redirect as last resort
       try{
-        await signInWithPopup(auth,new GoogleAuthProvider());
-      }catch(popupErr){
-        if(popupErr.code==='auth/popup-blocked'||popupErr.code==='auth/popup-closed-by-user'||popupErr.code==='auth/cancelled-popup-request'){
-          await signInWithRedirect(auth,new GoogleAuthProvider());
-        }else{throw popupErr}
+        await signInWithRedirect(auth,new GoogleAuthProvider());
+      }catch(e2){
+        alert('PWAモードではログインできません。\nSafariでこのURLを開いてログインしてください:\n'+location.href);
       }
+    }else if(e.code==='auth/popup-blocked'||e.code==='auth/popup-closed-by-user'||e.code==='auth/cancelled-popup-request'){
+      try{await signInWithRedirect(auth,new GoogleAuthProvider())}catch(e2){alert('ログインに失敗しました: '+e2.message)}
+    }else{
+      alert('ログインに失敗しました: '+(e.message||e.code));
     }
-  }catch(e){console.error('Sign-in error:',e);alert('ログインに失敗しました: '+e.message)}
+  }
 };
 window._siqSignOut=async()=>{
   if(!confirm('ログアウトしますか？'))return;
