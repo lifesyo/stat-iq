@@ -4,7 +4,10 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0b0f14">
 <title>Stat IQ</title>
+<link rel="manifest" href="data:application/json;base64,eyJuYW1lIjoiU3RhdCBJUSIsInNob3J0X25hbWUiOiJTdGF0SVEiLCJzdGFydF91cmwiOiIuLyIsImRpc3BsYXkiOiJzdGFuZGFsb25lIiwiYmFja2dyb3VuZF9jb2xvciI6IiMwYjBmMTQiLCJ0aGVtZV9jb2xvciI6IiMwYjBmMTQiLCJpY29ucyI6W3sic3JjIjoiZGF0YTppbWFnZS9zdmcreG1sLDxzdmcgeG1sbnM9J2h0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnJyB2aWV3Qm94PScwIDAgMTAwIDEwMCc+PHJlY3Qgd2lkdGg9JzEwMCcgaGVpZ2h0PScxMDAnIHJ4PScyMCcgZmlsbD0nIzBiMGYxNCcvPjx0ZXh0IHg9JzUwJyB5PSc2MCcgZm9udC1zaXplPSczNScgZm9udC1mYW1pbHk9J3NhbnMtc2VyaWYnIGZvbnQtd2VpZ2h0PSc3MDAnIGZpbGw9JyMwMGM5NzgnIHRleHQtYW5jaG9yPSdtaWRkbGUnPlNJUTwvdGV4dD48L3N2Zz4iLCJzaXplcyI6IjUxMng1MTIiLCJ0eXBlIjoiaW1hZ2Uvc3ZnK3htbCJ9XX0=">
 <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
@@ -1265,7 +1268,8 @@ function endGame(){if(!G||!confirm('この試合を終了しますか？'))retur
 }
 function renderHist(){const l=document.getElementById('hlist');if(!games.length){l.innerHTML='<div class="empty">まだ試合データがありません</div>';return}l.innerHTML='';
   games.slice().sort((a,b)=>(b.date||'').localeCompare(a.date||'')).forEach(g=>{const d=document.createElement('div');d.className='ghi';
-    d.innerHTML=`<div class="ghi-d">${g.date}</div><div class="ghi-t">${g.myTeamName||myTeam.name||'MY'} vs ${g.opponent}</div><div class="ghi-s">${g.myScore} - ${g.oppScore}</div><button class="ghi-x" style="opacity:1;background:var(--bluebg);color:var(--blue)" onclick="editGameInfo('${g.id}',event)">編集</button><button class="ghi-x" onclick="delG('${g.id}',event)">削除</button>`;
+    const gn=g.gameName?`<div style="font-size:10px;color:var(--t3);margin-top:1px">${g.gameName}</div>`:'';
+    d.innerHTML=`<div class="ghi-d">${g.date}</div><div class="ghi-t"><div>${g.myTeamName||myTeam.name||'MY'} vs ${g.opponent}</div>${gn}</div><div class="ghi-s">${g.myScore} - ${g.oppScore}</div><button class="ghi-x" style="opacity:1;background:var(--bluebg);color:var(--blue)" onclick="editGameInfo('${g.id}',event)">編集</button><button class="ghi-x" onclick="delG('${g.id}',event)">削除</button>`;
     d.onclick=e=>{if(e.target.classList.contains('ghi-x'))return;ldG(g.id)};l.appendChild(d)})}
 function delG(id,e){e.stopPropagation();if(!confirm('削除しますか？'))return;games=games.filter(g=>g.id!==id);save();renderHist()}
 function ldG(id){const g=games.find(g=>g.id===id);if(!g||!g.data)return;G=JSON.parse(JSON.stringify(g.data));selSide='my';selId=G.myOC[0]||0;save();showScreen('game')}
@@ -1276,8 +1280,11 @@ function editGameInfo(id,e){
   if(newDate===null)return;
   const newOpp=prompt('対戦相手:',g.opponent||'');
   if(newOpp===null)return;
+  const newName=prompt('試合名 (例: 練習試合, 春季大会1回戦):',g.gameName||'');
+  if(newName===null)return;
   g.date=newDate||g.date;
   if(newOpp)g.opponent=newOpp;
+  g.gameName=newName;
   if(g.data){g.data.date=g.date;if(newOpp)g.data.opponent=newOpp}
   save();renderHist();
 }
@@ -1703,6 +1710,38 @@ onAuthStateChanged(auth,async user=>{
     if(window.G){window.selSide='my';window.selId=window.G.myOC[0]||0;window.showScreen('game')}
   }
 });
+</script>
+<script>
+// Service Worker registration for offline support
+if('serviceWorker' in navigator){
+  const swCode=`
+const CACHE='statiq-v1';
+const ASSETS=['./'];
+const CDN_ASSETS=[
+  'https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js',
+  'https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap'
+];
+self.addEventListener('install',e=>{
+  e.waitUntil(caches.open(CACHE).then(c=>Promise.all([
+    ...ASSETS.map(u=>c.add(u).catch(()=>{})),
+    ...CDN_ASSETS.map(u=>fetch(u).then(r=>{if(r.ok)return c.put(u,r)}).catch(()=>{}))
+  ])).then(()=>self.skipWaiting()));
+});
+self.addEventListener('activate',e=>{
+  e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim()));
+});
+self.addEventListener('fetch',e=>{
+  e.respondWith(caches.match(e.request).then(r=>r||fetch(e.request).then(nr=>{
+    if(nr.ok&&(e.request.url.startsWith(self.location.origin)||CDN_ASSETS.some(a=>e.request.url.startsWith(a)))){
+      const c2=nr.clone();caches.open(CACHE).then(c=>c.put(e.request,c2));
+    }
+    return nr;
+  }).catch(()=>caches.match('./'))));
+});`;
+  const blob=new Blob([swCode],{type:'application/javascript'});
+  const swUrl=URL.createObjectURL(blob);
+  navigator.serviceWorker.register(swUrl).then(()=>{URL.revokeObjectURL(swUrl)}).catch(()=>{});
+}
 </script>
 </body>
 </html>
