@@ -125,7 +125,7 @@ canvas{display:block}
 .bs-chart-wrap{background:var(--bg3);border:1px solid var(--brd);border-radius:10px;padding:10px;min-width:0}
 .bs-chart-wrap.main{flex:3;min-width:280px}
 .bs-chart-wrap.sub{flex:1.5;min-width:180px}
-.bs-chart-wrap canvas{width:100%!important;height:auto!important}
+.bs-chart-wrap>div>canvas{width:100%!important;height:auto!important}
 .bs-chart-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
 .bs-chart-title{font-family:var(--fd);font-size:12px;font-weight:700;letter-spacing:.5px}
 .q-filter{display:flex;gap:3px}
@@ -205,7 +205,15 @@ canvas{display:block}
 </div>
 
 <!-- Modals -->
-<div class="mover" id="tm-modal"><div class="mdl"><h2>自チーム設定</h2><label>チーム名</label><input type="text" id="tm-name" placeholder="例: ○○中学校"><label>選手一覧</label><div class="ple" id="tm-list"></div><button class="apb" onclick="addPR('tm-list')">+ 選手を追加</button><div class="mact"><button class="bs2" onclick="closeM('tm-modal')">キャンセル</button><button class="bp" onclick="saveTeam()">保存</button></div></div></div>
+<div class="mover" id="tm-modal"><div class="mdl"><h2>自チーム管理</h2>
+  <div id="tm-saved-list" style="margin-bottom:12px"></div>
+  <hr style="border:none;border-top:1px solid var(--brd);margin:12px 0">
+  <h3 style="font-family:var(--fd);font-size:14px;color:var(--acc);margin-bottom:10px" id="tm-form-title">新しいチームを追加</h3>
+  <input type="hidden" id="tm-edit-idx" value="-1">
+  <label>チーム名</label><input type="text" id="tm-name" placeholder="例: ○○中学校">
+  <label>選手一覧</label><div class="ple" id="tm-list"></div><button class="apb" onclick="addPR('tm-list')">+ 選手を追加</button>
+  <div class="mact"><button class="bs2" onclick="closeM('tm-modal')">閉じる</button><button class="bp" onclick="saveTeam()">保存</button></div>
+</div></div>
 
 <div class="mover" id="opp-modal"><div class="mdl"><h2>相手チーム管理</h2>
   <div id="opp-saved-list"></div>
@@ -235,13 +243,17 @@ canvas{display:block}
 
 <script>
 var myTeam={name:'',players:[]}, G=null, games=[], oppTeams=[];
+var myTeams=[], activeTeamIdx=0; // multiple teams
 var selSide='my', selId=null, pending={my:null,opp:null}, cd={my:{},opp:{}};
 var bsQFilter='all', bsPlayerIdx={my:-1,opp:-1}, bsFlipChart=false;
 var courtRotation={my:0,opp:0}; // per-team: 0, 90, 180, 270
 
 // Persist
-function save(){localStorage.setItem('siq_t',JSON.stringify(myTeam));localStorage.setItem('siq_g',JSON.stringify(games));localStorage.setItem('siq_o',JSON.stringify(oppTeams));if(G)localStorage.setItem('siq_c',JSON.stringify(G))}
-function load(){try{let t=localStorage.getItem('siq_t');if(t)myTeam=JSON.parse(t);let g=localStorage.getItem('siq_g');if(g)games=JSON.parse(g);let o=localStorage.getItem('siq_o');if(o)oppTeams=JSON.parse(o);let c=localStorage.getItem('siq_c');if(c)G=JSON.parse(c)}catch(e){}}
+function save(){localStorage.setItem('siq_t',JSON.stringify(myTeam));localStorage.setItem('siq_g',JSON.stringify(games));localStorage.setItem('siq_o',JSON.stringify(oppTeams));localStorage.setItem('siq_mt',JSON.stringify(myTeams));localStorage.setItem('siq_ati',activeTeamIdx);if(G)localStorage.setItem('siq_c',JSON.stringify(G))}
+function load(){try{let t=localStorage.getItem('siq_t');if(t)myTeam=JSON.parse(t);let g=localStorage.getItem('siq_g');if(g)games=JSON.parse(g);let o=localStorage.getItem('siq_o');if(o)oppTeams=JSON.parse(o);let c=localStorage.getItem('siq_c');if(c)G=JSON.parse(c);let mt=localStorage.getItem('siq_mt');if(mt)myTeams=JSON.parse(mt);let ai=localStorage.getItem('siq_ati');if(ai!==null)activeTeamIdx=parseInt(ai)||0}catch(e){}
+  // Migration: if myTeams empty but myTeam has data, seed it
+  if(!myTeams.length&&myTeam.name){myTeam.id=uid();myTeams.push(JSON.parse(JSON.stringify(myTeam)));activeTeamIdx=0;save()}
+}
 
 // Nav
 function showScreen(id){document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));document.getElementById(id).classList.add('active');
@@ -251,9 +263,75 @@ function closeM(id){document.getElementById(id).classList.remove('on')}
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,6)}
 function addPR(lid,n='',nm=''){const l=document.getElementById(lid),r=document.createElement('div');r.className='pr';r.innerHTML=`<input class="ni" type="text" placeholder="#" value="${n}" maxlength="3"><input type="text" placeholder="名前" value="${nm}"><button class="rb" onclick="this.parentElement.remove()">×</button>`;l.appendChild(r)}
 
-// My Team
-function openTeamSetup(){document.getElementById('tm-name').value=myTeam.name||'';const l=document.getElementById('tm-list');l.innerHTML='';if(!myTeam.players.length)for(let i=0;i<5;i++)addPR('tm-list');else myTeam.players.forEach(p=>addPR('tm-list',p.number,p.name));openM('tm-modal')}
-function saveTeam(){myTeam.name=document.getElementById('tm-name').value.trim()||'MY TEAM';myTeam.players=[];document.querySelectorAll('#tm-list .pr').forEach(r=>{const i=r.querySelectorAll('input'),n=i[0].value.trim(),nm=i[1].value.trim();if(n||nm)myTeam.players.push({number:n,name:nm||('選手'+n)})});save();closeM('tm-modal')}
+// My Team — multi-team management
+function openTeamSetup(){
+  renderMyTeamList();
+  // Reset form for new team
+  document.getElementById('tm-edit-idx').value='-1';
+  document.getElementById('tm-form-title').textContent='新しいチームを追加';
+  document.getElementById('tm-name').value='';
+  const l=document.getElementById('tm-list');l.innerHTML='';
+  for(let i=0;i<5;i++)addPR('tm-list');
+  openM('tm-modal');
+}
+function renderMyTeamList(){
+  const el=document.getElementById('tm-saved-list');if(!el)return;
+  if(!myTeams.length){el.innerHTML='<div style="font-size:12px;color:var(--t3);padding:8px">保存されたチームはありません</div>';return}
+  let h='';
+  myTeams.forEach((t,i)=>{
+    const isActive=i===activeTeamIdx;
+    h+=`<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:7px;margin-bottom:4px;border:1px solid ${isActive?'var(--acc)':'var(--brd)'};background:${isActive?'var(--accbg)':'var(--bg3)'};cursor:pointer" onclick="switchMyTeam(${i})">
+      <span style="font-family:var(--fd);font-size:14px;font-weight:700;flex:1;color:${isActive?'var(--acc)':'var(--t1)'}">${t.name||'NO NAME'}</span>
+      <span style="font-size:11px;color:var(--t3)">${t.players.length}名</span>
+      ${isActive?'<span style="font-size:9px;color:var(--acc);font-weight:700;padding:2px 6px;border:1px solid var(--acc);border-radius:4px">使用中</span>':''}
+      <button style="font-size:11px;color:var(--blue);padding:3px 8px;border:1px solid var(--brd);border-radius:4px;background:var(--bg3)" onclick="event.stopPropagation();editMyTeam(${i})">編集</button>
+      <button style="font-size:11px;color:var(--red);padding:3px 8px;border:1px solid var(--brd);border-radius:4px;background:var(--bg3)" onclick="event.stopPropagation();delMyTeam(${i})">削除</button>
+    </div>`;
+  });
+  el.innerHTML=h;
+}
+function switchMyTeam(idx){
+  if(idx<0||idx>=myTeams.length)return;
+  activeTeamIdx=idx;
+  myTeam=JSON.parse(JSON.stringify(myTeams[idx]));
+  save();renderMyTeamList();
+}
+function editMyTeam(idx){
+  const t=myTeams[idx];if(!t)return;
+  document.getElementById('tm-edit-idx').value=idx;
+  document.getElementById('tm-form-title').textContent=t.name+' を編集';
+  document.getElementById('tm-name').value=t.name||'';
+  const l=document.getElementById('tm-list');l.innerHTML='';
+  if(t.players.length)t.players.forEach(p=>addPR('tm-list',p.number,p.name));
+  else for(let i=0;i<5;i++)addPR('tm-list');
+}
+function delMyTeam(idx){
+  if(!confirm(myTeams[idx].name+'を削除しますか？'))return;
+  myTeams.splice(idx,1);
+  if(activeTeamIdx>=myTeams.length)activeTeamIdx=Math.max(0,myTeams.length-1);
+  if(myTeams.length)myTeam=JSON.parse(JSON.stringify(myTeams[activeTeamIdx]));
+  else myTeam={name:'',players:[]};
+  save();renderMyTeamList();
+}
+function saveTeam(){
+  const name=document.getElementById('tm-name').value.trim()||'MY TEAM';
+  const players=[];
+  document.querySelectorAll('#tm-list .pr').forEach(r=>{const i=r.querySelectorAll('input'),n=i[0].value.trim(),nm=i[1].value.trim();if(n||nm)players.push({number:n,name:nm||('選手'+n)})});
+  const editIdx=parseInt(document.getElementById('tm-edit-idx').value);
+  if(editIdx>=0&&editIdx<myTeams.length){
+    myTeams[editIdx].name=name;myTeams[editIdx].players=players;
+    if(editIdx===activeTeamIdx)myTeam={name,players,id:myTeams[editIdx].id};
+  }else{
+    const newT={id:uid(),name,players};myTeams.push(newT);
+    activeTeamIdx=myTeams.length-1;myTeam=JSON.parse(JSON.stringify(newT));
+  }
+  save();renderMyTeamList();
+  // Reset form
+  document.getElementById('tm-edit-idx').value='-1';
+  document.getElementById('tm-form-title').textContent='新しいチームを追加';
+  document.getElementById('tm-name').value='';
+  const l=document.getElementById('tm-list');l.innerHTML='';for(let i=0;i<5;i++)addPR('tm-list');
+}
 
 // Opponent Team Manager
 function openOppManager(){
@@ -303,7 +381,7 @@ function startGame(){
   document.querySelectorAll('#ng-ops .tbb.on').forEach(b=>oppSt.push(+b.dataset.idx));
   if(mySt.length!==5){alert('自チームスターター5人を選択');return}
   if(oppSt.length<1){alert('相手スターターを選択');return}
-  G={id:uid(),date,opponent:opp,quarters:qc,oppPlayers:oppP,myQS:new Array(qc).fill(0),oppQS:new Array(qc).fill(0),cq:0,myOC:mySt,oppOC:oppSt,events:[]};
+  G={id:uid(),date,opponent:opp,quarters:qc,oppPlayers:oppP,myQS:new Array(qc).fill(0),oppQS:new Array(qc).fill(0),cq:0,myOC:mySt,oppOC:oppSt,events:[],myTeamId:myTeam.id||'',myTeamName:myTeam.name||''};
   selSide='my';selId=mySt[0];save();closeM('ng-modal');showScreen('game');
 }
 
@@ -935,7 +1013,7 @@ function renderBox(){if(!G)return;const ct=document.getElementById('bs-ct');
       const txtC=isSel?col:'var(--t2)';
       h+=`<button style="padding:4px 10px;border-radius:5px;background:${bg};border:1px solid ${brdC};color:${txtC};font-size:11px;font-weight:600;font-family:var(--fd)" onclick="bsPlayerIdx.${side}=${isSel?-1:i};renderBox()">#${p.number} ${p.name}</button>`;
     });
-    h+=`</div><div style="display:flex;gap:10px" id="bs-player-row-${side}"></div></div>`;
+    h+=`</div><div style="display:flex;gap:10px;overflow:hidden;max-height:340px" id="bs-player-row-${side}"></div></div>`;
 
     // Stats table
     h+=`<table class="bt"><thead><tr><th>選手</th><th>PTS</th><th>FG</th><th>FG%</th><th>3P</th><th>3P%</th><th>FT</th><th>OR</th><th>DR</th><th>REB</th><th>AST</th><th>STL</th><th>BLK</th><th>TO</th><th>PF</th><th>DEF</th><th>EFF</th></tr></thead><tbody>`;
@@ -967,8 +1045,9 @@ function renderBox(){if(!G)return;const ct=document.getElementById('bs-ct');
       if(prEl){prEl.innerHTML='';
         if(pidx>=0){
           const pShots=getFilteredShots(side,pidx,qf);
-          prEl.appendChild(drawZoneChart(440,280,pShots,fl));
-          prEl.appendChild(drawShotDots(260,220,pShots,teamColor,fl));
+          const zc=drawZoneChart(440,280,pShots,fl);zc.style.cssText='max-width:55%;height:auto';
+          const dc=drawShotDots(260,220,pShots,teamColor,fl);dc.style.cssText='max-width:35%;height:auto';
+          prEl.appendChild(zc);prEl.appendChild(dc);
         }else{prEl.innerHTML='<div style="text-align:center;padding:30px;color:var(--t3);font-size:12px;width:100%">選手を選択してください</div>'}}
     });
   });
@@ -981,17 +1060,35 @@ function bsNavPlayer(side,dir){
 }
 
 // ===== CAREER STATS =====
+var careerTeamFilter='all'; // 'all' or team id
 function renderCareer(){
   const ct=document.getElementById('career-ct');
   if(!games.length){ct.innerHTML='<div class="empty">まだ試合データがありません</div>';return}
-  const nG=games.length;
 
-  // Gather stats for each player across all games
+  // Team filter tabs
+  let filterH='<div style="display:flex;gap:4px;margin-bottom:14px;flex-wrap:wrap">';
+  filterH+=`<button class="q-fb${careerTeamFilter==='all'?' on':''}" onclick="careerTeamFilter='all';renderCareer()">全チーム</button>`;
+  myTeams.forEach(t=>{
+    filterH+=`<button class="q-fb${careerTeamFilter===t.id?' on':''}" onclick="careerTeamFilter='${t.id}';renderCareer()">${t.name}</button>`;
+  });
+  filterH+='</div>';
+
+  // Filter games by team
+  const fg=careerTeamFilter==='all'?games:games.filter(g=>(g.myTeamId||'')=== careerTeamFilter);
+  if(!fg.length){ct.innerHTML=filterH+'<div class="empty">このチームの試合データはありません</div>';return}
+  const nG=fg.length;
+
+  // Get team info for filtered view
+  const filterTeam=careerTeamFilter==='all'?myTeam:myTeams.find(t=>t.id===careerTeamFilter)||myTeam;
+  const filterTeamName=careerTeamFilter==='all'?'全チーム':filterTeam.name;
+
+  // Gather stats for each player across filtered games
   function gatherPlayerStats(){
     const pMap={};
-    games.forEach(g=>{
+    fg.forEach(g=>{
       if(!g.data||!g.data.events)return;
-      const ps=myTeam.players;
+      // Use the team's player list from the game data if available, else current
+      const ps=filterTeam.players;
       ps.forEach((p,pi)=>{
         const key=p.number+'_'+p.name;
         if(!pMap[key])pMap[key]={number:p.number,name:p.name,gp:0,pts:0,fgm:0,fga:0,tpm:0,tpa:0,ftm:0,fta:0,or:0,dr:0,reb:0,ast:0,stl:0,blk:0,to:0,pf:0,def:0,eff:0};
@@ -1019,7 +1116,7 @@ function renderCareer(){
   // Team totals
   function teamTotals(){
     let t={gp:nG,pts:0,fgm:0,fga:0,tpm:0,tpa:0,ftm:0,fta:0,or:0,dr:0,reb:0,ast:0,stl:0,blk:0,to:0,pf:0,def:0,eff:0,myScore:0,oppScore:0};
-    games.forEach(g=>{
+    fg.forEach(g=>{
       t.myScore+=g.myScore||0;t.oppScore+=g.oppScore||0;
       if(!g.data||!g.data.events)return;
       g.data.events.filter(e=>e.side==='my').forEach(e=>{
@@ -1039,11 +1136,12 @@ function renderCareer(){
   const fgp=tt.fga?Math.round(tt.fgm/tt.fga*100):0,tpp=tt.tpa?Math.round(tt.tpm/tt.tpa*100):0,ftp=tt.fta?Math.round(tt.ftm/tt.fta*100):0;
   const avg=v=>nG?(v/nG).toFixed(1):'0';
 
-  let h=`<div style="margin-bottom:20px">
-    <div style="font-family:var(--fd);font-size:16px;color:var(--my);margin-bottom:6px">${myTeam.name||'MY TEAM'} — ${nG}試合</div>
+  let h=filterH;
+  h+=`<div style="margin-bottom:20px">
+    <div style="font-family:var(--fd);font-size:16px;color:var(--my);margin-bottom:6px">${filterTeamName} — ${nG}試合</div>
     <div style="display:flex;gap:4px;font-size:11px;color:var(--t2);flex-wrap:wrap;margin-bottom:10px">
       <span>${tt.myScore}得点 / ${tt.oppScore}失点</span>
-      <span>（勝率: ${games.filter(g=>g.myScore>g.oppScore).length}勝${games.filter(g=>g.myScore<g.oppScore).length}敗）</span>
+      <span>（勝率: ${fg.filter(g=>g.myScore>g.oppScore).length}勝${fg.filter(g=>g.myScore<g.oppScore).length}敗）</span>
     </div>
   </div>`;
 
@@ -1150,7 +1248,7 @@ function buildCareerTable(pStats,isAvg){
 function endGame(){if(!G||!confirm('この試合を終了しますか？'))return;
   const myScore=G.myQS.reduce((a,b)=>a+b,0),oppScore=G.oppQS.reduce((a,b)=>a+b,0);
   const existing=games.findIndex(g=>g.id===G.id);
-  const entry={id:G.id,date:G.date,opponent:G.opponent,myScore,oppScore,data:JSON.parse(JSON.stringify(G))};
+  const entry={id:G.id,date:G.date,opponent:G.opponent,myScore,oppScore,myTeamId:G.myTeamId||myTeam.id||'',myTeamName:G.myTeamName||myTeam.name||'',data:JSON.parse(JSON.stringify(G))};
   if(existing>=0){games[existing]=entry}else{games.push(entry)}
   G=null;localStorage.removeItem('siq_c');save();showScreen('home');
 }
@@ -1329,7 +1427,8 @@ async function exportBoxPDF(){
     });
 
     // Total row
-    ctx.fillStyle=teamColor;ctx.fillRect(mm(mg),mm(y-0.5),mm(totalW),mm(rH+0.5));
+    y+=0.3;
+    ctx.fillStyle=teamColor;ctx.fillRect(mm(mg),mm(y),mm(totalW),mm(rH+0.3));
     var teff=calcEff(tot);
     var tfgp=tot.fga?Math.round(tot.fgm/tot.fga*100):0;
     var ttp=tot.tpa?Math.round(tot.tpm/tot.tpa*100):0;
@@ -1523,6 +1622,8 @@ window.save=function(){
     try{
       await setDoc(fbDocRef(),{
         myTeam:JSON.parse(JSON.stringify(window.myTeam)),
+        myTeams:JSON.parse(JSON.stringify(window.myTeams)),
+        activeTeamIdx:window.activeTeamIdx,
         games:JSON.parse(JSON.stringify(window.games)),
         oppTeams:JSON.parse(JSON.stringify(window.oppTeams)),
         currentGame:window.G?JSON.parse(JSON.stringify(window.G)):null,
@@ -1541,6 +1642,8 @@ async function fbLoad(){
     if(snap.exists()){
       const d=snap.data();
       if(d.myTeam)window.myTeam=d.myTeam;
+      if(d.myTeams)window.myTeams=d.myTeams;
+      if(d.activeTeamIdx!==undefined)window.activeTeamIdx=d.activeTeamIdx;
       if(d.games)window.games=d.games;
       if(d.oppTeams)window.oppTeams=d.oppTeams;
       if(d.currentGame)window.G=d.currentGame;
@@ -1556,6 +1659,8 @@ function startSync(){
     if(!snap.exists()||_saving)return;
     const d=snap.data();
     if(d.myTeam)window.myTeam=d.myTeam;
+    if(d.myTeams)window.myTeams=d.myTeams;
+    if(d.activeTeamIdx!==undefined)window.activeTeamIdx=d.activeTeamIdx;
     if(d.games)window.games=d.games;
     if(d.oppTeams)window.oppTeams=d.oppTeams;
     if(d.currentGame!==undefined)window.G=d.currentGame;
