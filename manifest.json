@@ -1,0 +1,17 @@
+{
+  "name": "Stat IQ",
+  "short_name": "StatIQ",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#0b0f14",
+  "theme_color": "#0b0f14",
+  "orientation": "landscape",
+  "icons": [
+    {
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%230b0f14'/><text x='50' y='62' font-size='32' font-family='sans-serif' font-weight='700' fill='%2300c978' text-anchor='middle'>SIQ</text></svg>",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
