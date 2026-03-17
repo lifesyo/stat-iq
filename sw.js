@@ -1,4 +1,4 @@
-const CACHE = 'statiq-v4';
+const CACHE = 'statiq-v5';
 const ASSETS = [
   './',
   './index.html'
@@ -37,7 +37,10 @@ self.addEventListener('fetch', e => {
   if (url.includes('googleapis.com/identitytoolkit') ||
       url.includes('securetoken.googleapis.com') ||
       url.includes('firestore.googleapis.com') ||
-      url.includes('www.gstatic.com/firebasejs')) {
+      url.includes('www.gstatic.com/firebasejs') ||
+      url.includes('firebaseapp.com') ||
+      url.includes('accounts.google.com') ||
+      url.includes('/__/auth/')) {
     return;
   }
   e.respondWith(

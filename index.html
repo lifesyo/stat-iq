@@ -1632,12 +1632,12 @@ async function exportBoxPDF(){
 </script>
 <script type="module">
 import{initializeApp}from'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
-import{getAuth,GoogleAuthProvider,signInWithPopup,signInWithRedirect,getRedirectResult,onAuthStateChanged,signOut as fbSignOut,browserLocalPersistence,setPersistence}from'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
+import{getAuth,GoogleAuthProvider,signInWithPopup,signInWithRedirect,getRedirectResult,onAuthStateChanged,signOut as fbSignOut,indexedDBLocalPersistence,browserLocalPersistence,setPersistence}from'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
 import{getFirestore,doc,setDoc,getDoc,onSnapshot}from'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 
 const firebaseConfig={
   apiKey:"AIzaSyBO2_N8gi_fGhKv7cQv-yTMvR329d2TLSw",
-  authDomain:"stat-iq.vercel.app",
+  authDomain:"animation-50e1f.firebaseapp.com",
   projectId:"animation-50e1f",
   storageBucket:"animation-50e1f.firebasestorage.app",
   messagingSenderId:"498744153399",
@@ -1661,25 +1661,23 @@ function renderAuthBar(){
 // Detect standalone PWA mode
 const _isPWA=window.matchMedia('(display-mode:standalone)').matches||window.navigator.standalone===true;
 
+// Use indexedDB persistence for PWA (survives redirect)
+setPersistence(auth,indexedDBLocalPersistence).catch(()=>setPersistence(auth,browserLocalPersistence).catch(()=>{}));
+
 // Expose sign-in/out IMMEDIATELY so onclick handlers work
 window._siqSignIn=async()=>{
-  try{
-    await setPersistence(auth,browserLocalPersistence);
-    // Always try popup first — it works in Safari and some PWA contexts
-    await signInWithPopup(auth,new GoogleAuthProvider());
-  }catch(e){
-    console.error('Sign-in error:',e);
-    if(_isPWA&&(e.code==='auth/popup-blocked'||e.code==='auth/popup-closed-by-user'||e.code==='auth/cancelled-popup-request'||e.code==='auth/internal-error')){
-      // PWA popup failed — try redirect as last resort
-      try{
-        await signInWithRedirect(auth,new GoogleAuthProvider());
-      }catch(e2){
-        alert('PWAモードではログインできません。\nSafariでこのURLを開いてログインしてください:\n'+location.href);
-      }
-    }else if(e.code==='auth/popup-blocked'||e.code==='auth/popup-closed-by-user'||e.code==='auth/cancelled-popup-request'){
-      try{await signInWithRedirect(auth,new GoogleAuthProvider())}catch(e2){alert('ログインに失敗しました: '+e2.message)}
-    }else{
-      alert('ログインに失敗しました: '+(e.message||e.code));
+  const provider=new GoogleAuthProvider();
+  if(_isPWA){
+    // PWA: use redirect (popup doesn't work in standalone mode)
+    try{await signInWithRedirect(auth,provider)}catch(e){alert('ログインに失敗しました: '+(e.message||e.code))}
+  }else{
+    // Browser: try popup, fallback to redirect
+    try{
+      await signInWithPopup(auth,provider);
+    }catch(e){
+      if(e.code==='auth/popup-blocked'||e.code==='auth/popup-closed-by-user'||e.code==='auth/cancelled-popup-request'){
+        try{await signInWithRedirect(auth,provider)}catch(e2){alert('ログインに失敗しました: '+(e2.message||e2.code))}
+      }else{alert('ログインに失敗しました: '+(e.message||e.code))}
     }
   }
 };
