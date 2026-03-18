@@ -210,7 +210,7 @@ input,select{font-family:inherit;outline:none}
   <div class="tb">
     <button class="tbb" onclick="prevQ()">◀</button><button class="tbb on" id="tb-q">Q1</button><button class="tbb" onclick="nextQ()">▶</button>
     <div style="width:1px;height:18px;background:var(--brd);margin:0 2px"></div>
-    <button class="tbb" onclick="if(_pa){clearPendingAction();pending.my=null;pending.opp=null}else{undoLast()}">↩ 取消</button>
+    <button class="tbb" onclick="undoLast()">↩ 取消</button>
     <button class="tbb" onclick="toggleBox()">📊 BOX</button>
     <button class="tbb" onclick="toggleLog()">📋 ログ</button>
     <div class="tbs"></div>
@@ -863,13 +863,13 @@ function getZone(mx,my){
 // Display zone is now identical to getZone
 function getDisplayZone(mx,my){return getZone(mx,my)}
 
-// Court click — no longer requires player pre-selection
+// Court click — requires player pre-selection
 ['my','opp'].forEach(side=>{document.getElementById('cv-'+side).addEventListener('click',function(e){
   if(!G)return;
+  // Require a player to be selected first
+  if(selSide!==side||selId===null){return}
   const r=this.getBoundingClientRect(),d=cd[side];if(!d.px)return;
-  // Canvas pixel coords (relative to element)
   let cpx=e.clientX-r.left, cpy=e.clientY-r.top;
-  // Reverse rotation to get drawing-space coords
   const rot=d.rot||0;
   if(rot){
     const cxC=d.canvasW/2, cyC=d.canvasH/2;
@@ -879,12 +879,10 @@ function getDisplayZone(mx,my){return getZone(mx,my)}
     cpy=dx*Math.sin(rad)+dy*Math.cos(rad)+d.drawH/2;
   }
   let mx=(cpx-d.oX)/d.px,my=14-(cpy-d.oY)/d.px;
-  // Allow taps anywhere on canvas, clamp to court range
   mx=Math.max(0,Math.min(15,mx));my=Math.max(0,Math.min(14,my));
   pending[side]={x:mx,y:my,zone:getZone(mx,my),is3:is3pt(mx,my)};
   const pop=document.getElementById('sp-'+side);
   let px2=e.clientX+10,py2=e.clientY-20;
-  // Ensure popup stays within viewport
   const popW=260,popH=50;
   if(px2+popW>window.innerWidth)px2=e.clientX-popW-10;
   if(py2+popH>window.innerHeight)py2=window.innerHeight-popH-6;
@@ -897,49 +895,26 @@ function recShot(side,made){
   const p=pending[side];if(!p)return;
   p.made=made;
   document.getElementById('sp-'+side).classList.remove('on');
-  // Enter awaiting-player mode: user taps player in column to confirm
-  setPendingAction(side,'SHOT',0);
-}
-function commitShot(side,pid){
-  const p=pending[side];if(!p)return;
+  // Directly commit with the pre-selected player
+  const pid=selId;
+  if(pid===null)return;
   const pts=p.is3?3:2;
   G.events.push({id:uid(),q:G.cq,side,pid,type:'SHOT',made:p.made,pts:p.made?pts:0,st:p.is3?'3PT':'2PT',x:p.x,y:p.y,zone:p.zone,ts:Date.now()});
   if(p.made)(side==='my'?G.myQS:G.oppQS)[G.cq]+=pts;
   pending[side]=null;save();drawCourt(side);updateAll();
 }
-function canShot(side){pending[side]=null;document.getElementById('sp-'+side).classList.remove('on');clearPendingAction()}
-
-// Pending action state: waiting for player tap
-var _pa=null; // {side, type, pts, isShot}
-
-function setPendingAction(side,type,pts){
-  const labels={'SHOT':'シュート','FT_MADE':'FT成功','FT_MISS':'FT失敗','OR':'Oリバウンド','DR':'Dリバウンド','AST':'アシスト','STL':'スティール','BLK':'ブロック','TO':'ターンオーバー','PF':'ファウル','DEF':'DEF'};
-  _pa={side,type,pts,isShot:type==='SHOT',label:labels[type]||type};
-  selSide=side;selId=null;
-  renderPlayers();renderSC('my');renderSC('opp');
-}
-function clearPendingAction(){_pa=null;selId=null;renderPlayers();renderSC('my');renderSC('opp')}
+function canShot(side){pending[side]=null;document.getElementById('sp-'+side).classList.remove('on')}
 
 function selAndStat(side,type,pts){
   if(!G)return;
-  // Always enter pending action mode — user picks player from column
-  setPendingAction(side,type,pts);
+  // Require player pre-selection
+  if(selSide!==side||selId===null){return}
+  const pid=selId;
+  G.events.push({id:uid(),q:G.cq,side,pid,type,made:type.includes('MADE'),pts,ts:Date.now()});
+  if(pts>0)(side==='my'?G.myQS:G.oppQS)[G.cq]+=pts;
+  save();updateAll();
 }
 
-// Called when player button is tapped while a pending action exists
-function commitPendingAction(pid){
-  if(!_pa||!G)return;
-  const{side,type,pts,isShot}=_pa;
-  if(isShot){
-    commitShot(side,pid);
-  }else{
-    G.events.push({id:uid(),q:G.cq,side,pid,type,made:type.includes('MADE'),pts,ts:Date.now()});
-    if(pts>0)(side==='my'?G.myQS:G.oppQS)[G.cq]+=pts;
-    save();updateAll();
-  }
-  _pa=null;selId=null;
-  renderPlayers();renderSC('my');renderSC('opp');
-}
 function undoLast(){if(!G||!G.events.length)return;const l=G.events.pop();if(l.pts&&l.made)(l.side==='my'?G.myQS:G.oppQS)[l.q]-=l.pts;save();drawCourt('my');drawCourt('opp');updateAll()}
 
 // Delete specific event by ID (for event log)
@@ -977,12 +952,6 @@ function renderPC(side){
   const ps=side==='my'?myTeam.players:G.oppPlayers,oc=side==='my'?G.myOC:G.oppOC;
   // Sort on-court by number
   sortOC(side);
-  // Show pending action banner
-  if(_pa&&_pa.side===side){
-    const ban=document.createElement('div');ban.className='await-banner on';
-    ban.innerHTML=_pa.label+' <span style="font-size:8px;opacity:.7">▼選手をタップ</span>';
-    col.appendChild(ban);
-  }
   const lbl1=document.createElement('div');lbl1.className='clbl';lbl1.textContent='ON COURT';col.appendChild(lbl1);
   oc.forEach(idx=>{const p=ps[idx];if(p)col.appendChild(mkPB(p,idx,side,true))});
   const lbl2=document.createElement('div');lbl2.className='clbl';lbl2.style.marginTop='6px';lbl2.textContent='BENCH';col.appendChild(lbl2);
@@ -994,21 +963,13 @@ function renderPC(side){
 }
 function mkPB(p,idx,side,onCourt){
   const b=document.createElement('button'),isSel=selSide===side&&selId===idx;
-  const isAwaiting=_pa&&_pa.side===side;
-  b.className='pbtn'+(isSel?(side==='opp'?' osel':' sel'):'')+(isAwaiting?(side==='opp'?' awaiting-opp':' awaiting'):'');
+  b.className='pbtn'+(isSel?(side==='opp'?' osel':' sel'):'');
   b.dataset.side=side;b.dataset.idx=idx;b.dataset.oncourt=onCourt?'1':'0';
   b.innerHTML=`<span class="dot ${onCourt?(side==='opp'?'oon':'on'):'off'}"></span><span class="pn">#${p.number}</span><span class="pnm">${p.name}</span>`;
   b.addEventListener('click',e=>{if(_drd.didDrag)return;e.stopPropagation();
-    if(_pa&&_pa.side===side){
-      // Pending action exists for this side — commit with this player
-      commitPendingAction(idx);
-    }else if(_pa&&_pa.side!==side){
-      // Wrong side — ignore
-    }else{
-      // No pending action — toggle selection for viewing stats
-      if(selSide===side&&selId===idx){selId=null}else{selSide=side;selId=idx}
-      renderPlayers();renderSC('my');renderSC('opp');
-    }
+    // Toggle selection
+    if(selSide===side&&selId===idx){selId=null}else{selSide=side;selId=idx}
+    renderPlayers();renderSC('my');renderSC('opp');
   });
   // Long-press drag start
   b.addEventListener('pointerdown',e=>{if(e.button!==0)return;_drd.startX=e.clientX;_drd.startY=e.clientY;_drd.srcSide=side;_drd.srcIdx=idx;_drd.srcOnCourt=onCourt;_drd.srcEl=b;_drd.didDrag=false;
@@ -1751,35 +1712,37 @@ async function exportBoxPDF(){
     // Filter: only players with any stats in this quarter
     var active=all.filter(function(s){return s.pts>0||s.fga>0||s.fta>0||s.reb>0||s.ast>0||s.stl>0||s.blk>0||s.to>0||s.pf>0||s.def>0});
     if(!active.length){
-      ctx.font='400 '+mm(2.2)+'px Inter,sans-serif';ctx.fillStyle=C.light;ctx.textAlign='left';
+      ctx.font='400 '+mm(2)+'px Inter,sans-serif';ctx.fillStyle=C.light;ctx.textAlign='left';
       ctx.fillText('No stats recorded',mm(12),mm(yStart+2));
-      return yStart+5;
+      return yStart+4.5;
     }
     var tot=active.reduce(function(t,s){Object.keys(s).forEach(function(k){if(k!=='i')t[k]=(t[k]||0)+s[k]});return t},{});
-    var hdr=['','PTS','2P','3P','FG%','FT','REB','AST','STL','BLK','TO','PF','EFF'];
-    var cw=[24,8,12,12,9,12,8,8,8,8,7,7,8];
+    // Same columns as full BOX SCORE
+    var hdr=['','PTS','2P','2P%','3P','3P%','FG','FG%','FT','FT%','OR','DR','REB','AST','STL','BLK','TO','PF','EFF'];
+    var cw=[22,8,11,9,11,9,11,9,11,9,6,6,8,8,8,8,6,6,8];
     var totalW=cw.reduce(function(a,b){return a+b},0);
-    var mg=10,rH=2.6,y=yStart;
+    var mg=10,rH=2.5,y=yStart;
 
     // Header row
     ctx.fillStyle=C.dark;ctx.fillRect(mm(mg),mm(y-1),mm(totalW),mm(3));
-    ctx.font='700 '+mm(1.9)+'px Inter,sans-serif';ctx.fillStyle='#ffffff';ctx.textBaseline='middle';
+    ctx.font='700 '+mm(1.8)+'px Inter,sans-serif';ctx.fillStyle='#ffffff';ctx.textBaseline='middle';
     var rx=mg;
     hdr.forEach(function(h,i){ctx.textAlign=i===0?'left':'center';ctx.fillText(h,mm(i===0?rx+0.5:rx+cw[i]/2),mm(y+0.5));rx+=cw[i]});
     y+=2.5;
 
     // Data rows
-    ctx.font='400 '+mm(1.9)+'px Inter,sans-serif';ctx.textBaseline='middle';
+    ctx.font='400 '+mm(1.8)+'px Inter,sans-serif';ctx.textBaseline='middle';
     active.forEach(function(s,ri){
       if(ri%2===0){ctx.fillStyle=C.stripe;ctx.fillRect(mm(mg),mm(y-0.5),mm(totalW),mm(rH))}
       ctx.fillStyle=C.black;
       var p=ps[s.i],eff=calcEff(s);
       var fgp=s.fga?Math.round(s.fgm/s.fga*100):0;
-      var row=['#'+p.number+' '+p.name,s.pts,s.twom+'/'+s.twoa,s.tpm+'/'+s.tpa,fgp+'%',s.ftm+'/'+s.fta,s.reb,s.ast,s.stl,s.blk,s.to,s.pf,eff];
+      var tpp=s.tpa?Math.round(s.tpm/s.tpa*100):0;
+      var row=['#'+p.number+' '+p.name,s.pts,s.twom+'/'+s.twoa,s.twop+'%',s.tpm+'/'+s.tpa,tpp+'%',s.fgm+'/'+s.fga,fgp+'%',s.ftm+'/'+s.fta,s.ftp+'%',s.or,s.dr,s.reb,s.ast,s.stl,s.blk,s.to,s.pf,eff];
       rx=mg;
       row.forEach(function(v,i){
-        if(i===1&&s.pts>=10){ctx.fillStyle=teamColor;ctx.font='700 '+mm(1.9)+'px Inter,sans-serif'}
-        else{ctx.fillStyle=C.black;ctx.font='400 '+mm(1.9)+'px Inter,sans-serif'}
+        if(i===1&&s.pts>=10){ctx.fillStyle=teamColor;ctx.font='700 '+mm(1.8)+'px Inter,sans-serif'}
+        else{ctx.fillStyle=C.black;ctx.font='400 '+mm(1.8)+'px Inter,sans-serif'}
         ctx.textAlign=i===0?'left':'center';
         ctx.fillText(String(v),mm(i===0?rx+0.5:rx+cw[i]/2),mm(y+rH/2-0.3));
         rx+=cw[i];
@@ -1792,8 +1755,11 @@ async function exportBoxPDF(){
     ctx.fillStyle=teamColor;ctx.fillRect(mm(mg),mm(y),mm(totalW),mm(rH));
     var teff=calcEff(tot);
     var tfgp=tot.fga?Math.round(tot.fgm/tot.fga*100):0;
-    ctx.font='700 '+mm(1.9)+'px Inter,sans-serif';ctx.fillStyle='#ffffff';ctx.textBaseline='middle';
-    var totR=['TOTAL',tot.pts||0,(tot.twom||0)+'/'+(tot.twoa||0),(tot.tpm||0)+'/'+(tot.tpa||0),tfgp+'%',(tot.ftm||0)+'/'+(tot.fta||0),tot.reb||0,tot.ast||0,tot.stl||0,tot.blk||0,tot.to||0,tot.pf||0,teff];
+    var ttp=tot.tpa?Math.round(tot.tpm/tot.tpa*100):0;
+    var totFtp=tot.fta?Math.round(tot.ftm/tot.fta*100):0;
+    var tot2p=tot.twoa?Math.round(tot.twom/tot.twoa*100):0;
+    ctx.font='700 '+mm(1.8)+'px Inter,sans-serif';ctx.fillStyle='#ffffff';ctx.textBaseline='middle';
+    var totR=['TOTAL',tot.pts||0,(tot.twom||0)+'/'+(tot.twoa||0),tot2p+'%',(tot.tpm||0)+'/'+(tot.tpa||0),ttp+'%',(tot.fgm||0)+'/'+(tot.fga||0),tfgp+'%',(tot.ftm||0)+'/'+(tot.fta||0),totFtp+'%',tot.or||0,tot.dr||0,tot.reb||0,tot.ast||0,tot.stl||0,tot.blk||0,tot.to||0,tot.pf||0,teff];
     rx=mg;
     totR.forEach(function(v,i){
       ctx.textAlign=i===0?'left':'center';
