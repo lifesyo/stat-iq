@@ -298,8 +298,8 @@ var bsQFilter='all', bsPlayerIdx={my:-1,opp:-1}, bsFlipChart=false;
 var courtRotation={my:0,opp:0}; // per-team: 0, 90, 180, 270
 
 // Persist
-function save(){localStorage.setItem('siq_t',JSON.stringify(myTeam));localStorage.setItem('siq_g',JSON.stringify(games));localStorage.setItem('siq_o',JSON.stringify(oppTeams));localStorage.setItem('siq_mt',JSON.stringify(myTeams));localStorage.setItem('siq_ati',activeTeamIdx);if(G)localStorage.setItem('siq_c',JSON.stringify(G))}
-function load(){try{let t=localStorage.getItem('siq_t');if(t)myTeam=JSON.parse(t);let g=localStorage.getItem('siq_g');if(g)games=JSON.parse(g);let o=localStorage.getItem('siq_o');if(o)oppTeams=JSON.parse(o);let c=localStorage.getItem('siq_c');if(c)G=JSON.parse(c);let mt=localStorage.getItem('siq_mt');if(mt)myTeams=JSON.parse(mt);let ai=localStorage.getItem('siq_ati');if(ai!==null)activeTeamIdx=parseInt(ai)||0}catch(e){}
+function save(){localStorage.setItem('siq_t',JSON.stringify(myTeam));localStorage.setItem('siq_g',JSON.stringify(games));localStorage.setItem('siq_o',JSON.stringify(oppTeams));localStorage.setItem('siq_mt',JSON.stringify(myTeams));localStorage.setItem('siq_ati',activeTeamIdx);if(G)localStorage.setItem('siq_c',JSON.stringify(G));var now=Date.now();localStorage.setItem('siq_upd',now);window._localUpdatedAt=now}
+function load(){try{let t=localStorage.getItem('siq_t');if(t)myTeam=JSON.parse(t);let g=localStorage.getItem('siq_g');if(g)games=JSON.parse(g);let o=localStorage.getItem('siq_o');if(o)oppTeams=JSON.parse(o);let c=localStorage.getItem('siq_c');if(c)G=JSON.parse(c);let mt=localStorage.getItem('siq_mt');if(mt)myTeams=JSON.parse(mt);let ai=localStorage.getItem('siq_ati');if(ai!==null)activeTeamIdx=parseInt(ai)||0;let lu=localStorage.getItem('siq_upd');window._localUpdatedAt=lu?parseInt(lu):0}catch(e){}
   // Migration: if myTeams empty but myTeam has data, seed it
   if(!myTeams.length&&myTeam.name){myTeam.id=uid();myTeams.push(JSON.parse(JSON.stringify(myTeam)));activeTeamIdx=0;save()}
   // Migration: ensure all players have IDs
@@ -1066,7 +1066,7 @@ function renderEventLog(){
       <span class="elog-q">Q${ev.q+1}</span>
       <span class="elog-pn" style="color:${sideColor}">${pNum}</span>
       <span class="elog-act">${actTxt}${ptsTxt}</span>
-      <span class="elog-del" onclick="event.stopPropagation();if(confirm('この記録を削除しますか？'))deleteEvent('${ev.id}')">✕</span>
+      <span class="elog-del" onclick="event.stopPropagation();deleteEvent('${ev.id}')">✕</span>
     </div>`;
   });
   list.innerHTML=h;
@@ -1829,42 +1829,91 @@ window.save=function(){
   },800);
 };
 
-// Load from Firestore
+// Load from Firestore — compare timestamps, push local if newer
 async function fbLoad(){
   if(!_fbUser)return;
   try{
     const snap=await getDoc(fbDocRef());
+    const localTs=window._localUpdatedAt||0;
     if(snap.exists()){
       const d=snap.data();
-      if(d.myTeam)window.myTeam=d.myTeam;
-      if(d.myTeams)window.myTeams=d.myTeams;
-      if(d.activeTeamIdx!==undefined)window.activeTeamIdx=d.activeTeamIdx;
-      if(d.games)window.games=d.games;
-      if(d.oppTeams)window.oppTeams=d.oppTeams;
-      if(d.currentGame)window.G=d.currentGame;
-      _origSave();
+      const remoteTs=d.updatedAt||0;
+      if(localTs>remoteTs){
+        // Local is newer (offline edits) — push to Firestore
+        console.log('[Stat IQ] Local data newer, pushing to Firestore',localTs,'>',remoteTs);
+        await fbPush();
+      }else{
+        // Remote is newer or equal — pull from Firestore
+        console.log('[Stat IQ] Remote data newer or equal, pulling',remoteTs,'>=',localTs);
+        applyRemote(d);
+      }
+    }else{
+      // No remote data yet — push local
+      console.log('[Stat IQ] No remote data, pushing local');
+      await fbPush();
     }
   }catch(e){console.error('Firestore load error',e)}
 }
 
-// Real-time sync listener
+function applyRemote(d){
+  if(d.myTeam)window.myTeam=d.myTeam;
+  if(d.myTeams)window.myTeams=d.myTeams;
+  if(d.activeTeamIdx!==undefined)window.activeTeamIdx=d.activeTeamIdx;
+  if(d.games)window.games=d.games;
+  if(d.oppTeams)window.oppTeams=d.oppTeams;
+  if(d.currentGame!==undefined)window.G=d.currentGame;
+  window._localUpdatedAt=d.updatedAt||Date.now();
+  _origSave();
+}
+
+async function fbPush(){
+  if(!_fbUser)return;
+  _saving=true;
+  try{
+    const now=Date.now();
+    await setDoc(fbDocRef(),{
+      myTeam:JSON.parse(JSON.stringify(window.myTeam)),
+      myTeams:JSON.parse(JSON.stringify(window.myTeams)),
+      activeTeamIdx:window.activeTeamIdx,
+      games:JSON.parse(JSON.stringify(window.games)),
+      oppTeams:JSON.parse(JSON.stringify(window.oppTeams)),
+      currentGame:window.G?JSON.parse(JSON.stringify(window.G)):null,
+      updatedAt:now
+    },{merge:true});
+    window._localUpdatedAt=now;
+    localStorage.setItem('siq_upd',now);
+    console.log('[Stat IQ] fbPush OK');
+  }catch(e){console.error('fbPush error',e)}
+  _saving=false;
+}
+
+// Real-time sync listener — respect timestamps
 function startSync(){
   if(_unsub)_unsub();
   _unsub=onSnapshot(fbDocRef(),snap=>{
     if(!snap.exists()||_saving)return;
     const d=snap.data();
-    if(d.myTeam)window.myTeam=d.myTeam;
-    if(d.myTeams)window.myTeams=d.myTeams;
-    if(d.activeTeamIdx!==undefined)window.activeTeamIdx=d.activeTeamIdx;
-    if(d.games)window.games=d.games;
-    if(d.oppTeams)window.oppTeams=d.oppTeams;
-    if(d.currentGame!==undefined)window.G=d.currentGame;
-    _origSave();
+    const remoteTs=d.updatedAt||0;
+    const localTs=window._localUpdatedAt||0;
+    if(localTs>remoteTs){
+      // Local is newer, don't overwrite — push instead
+      console.log('[Stat IQ] onSnapshot: local newer, skipping pull');
+      return;
+    }
+    applyRemote(d);
     if(window.G&&document.getElementById('game').classList.contains('active')){
       window.renderPlayers();window.updateAll();window.drawCourt('my');window.drawCourt('opp');
     }
   });
 }
+
+// Flush pending local changes when coming back online
+window.addEventListener('online',()=>{
+  if(_fbUser){
+    console.log('[Stat IQ] Back online, flushing to Firestore');
+    fbPush();
+  }
+});
 
 onAuthStateChanged(auth,async user=>{
   _fbUser=user;
