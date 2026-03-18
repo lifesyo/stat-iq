@@ -275,16 +275,18 @@ input,select{font-family:inherit;outline:none}
 </div></div>
 
 <div class="mover" id="ng-modal"><div class="mdl wide"><h2>新しい試合</h2>
-  <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:12px">
-    <div><label>対戦相手</label><div id="ng-opp-select" style="margin-bottom:4px"></div><input type="text" id="ng-opp" placeholder="またはチーム名を入力"></div>
-    <div><label>日付</label><input type="date" id="ng-date"><label>試合名 <span style="font-weight:400;color:var(--t3)">(任意)</span></label><input type="text" id="ng-gname" placeholder="例: 春季大会1回戦"></div>
-    <div><label>クォーター数</label><select id="ng-qc"><option value="1">1Q</option><option value="2">2Q</option><option value="3">3Q</option><option value="4" selected>4Q</option></select></div>
+  <div style="display:flex;gap:10px;margin-bottom:10px">
+    <div style="flex:1"><label>対戦相手</label><div id="ng-opp-select" style="margin-bottom:4px"></div><input type="text" id="ng-opp" placeholder="またはチーム名を入力"></div>
+    <div style="flex:1"><label>日付</label><input type="date" id="ng-date"></div>
+    <div style="flex:1"><label>試合名 <span style="font-weight:400;color:var(--t3)">(任意)</span></label><input type="text" id="ng-gname" placeholder="例: 春季大会1回戦"></div>
+    <div style="width:90px;flex-shrink:0"><label>Q数</label><select id="ng-qc"><option value="1">1Q</option><option value="2">2Q</option><option value="3">3Q</option><option value="4" selected>4Q</option></select></div>
   </div>
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-    <div><label>相手チーム選手 <span style="font-weight:400;color:var(--t3)">(保存チーム選択時は自動入力)</span></label><div class="ple" id="ng-opp-list"></div><button class="apb" onclick="addPR('ng-opp-list')">+ 追加</button></div>
-    <div><div class="tab-row"><button class="tab-btn on" id="tab-my" onclick="swTab('my')">自チーム スターター</button><button class="tab-btn" id="tab-opp" onclick="swTab('opp')">相手 スターター</button></div>
-    <div class="tab-panel on" id="tp-my"><div id="ng-mys"></div></div><div class="tab-panel" id="tp-opp"><div id="ng-ops"></div></div></div>
-  </div>
+  <div style="display:flex;gap:16px"><div style="flex:1;min-width:0">
+    <label>相手チーム選手 <span style="font-weight:400;color:var(--t3)">(保存チーム選択時は自動入力)</span></label><div class="ple" id="ng-opp-list"></div><button class="apb" onclick="addPR('ng-opp-list')">+ 追加</button>
+  </div><div style="flex:1;min-width:0">
+    <div class="tab-row"><button class="tab-btn on" id="tab-my" onclick="swTab('my')">自チーム スターター</button><button class="tab-btn" id="tab-opp" onclick="swTab('opp')">相手 スターター</button></div>
+    <div class="tab-panel on" id="tp-my"><div id="ng-mys"></div></div><div class="tab-panel" id="tp-opp"><div id="ng-ops"></div></div>
+  </div></div>
   <div class="mact"><button class="bs2" onclick="closeM('ng-modal')">キャンセル</button><button class="bp" onclick="startGame()">試合開始</button></div></div></div>
 
 <div class="bso" id="bso"><div class="bsc"><div class="bsh"><h2>BOX SCORE</h2><div style="display:flex;gap:6px"><button class="tbb" onclick="exportBoxPDF()" style="background:var(--accbg);border-color:var(--acc);color:var(--acc)">📄 PDF出力</button><button class="bsx" onclick="toggleBox()">✕</button></div></div><div id="bs-ct"></div></div></div>
