@@ -175,6 +175,14 @@ input,select{font-family:inherit;outline:none}
 .elog-item .elog-del{font-size:12px;color:var(--red);opacity:0;padding:2px 5px;border-radius:4px;transition:var(--tr);cursor:pointer}
 .elog-item:hover .elog-del{opacity:1}
 .elog-item .elog-del:hover{background:var(--redbg)}
+
+/* Pending action state — player buttons pulse when waiting for selection */
+.pbtn.awaiting{animation:awaitPulse .8s ease-in-out infinite alternate;border-color:var(--orn);background:var(--ornbg)}
+.pbtn.awaiting-opp{animation:awaitPulseOpp .8s ease-in-out infinite alternate;border-color:var(--opp);background:var(--oppbg)}
+@keyframes awaitPulse{from{box-shadow:0 0 0 0 rgba(245,158,66,.3)}to{box-shadow:0 0 8px 2px rgba(245,158,66,.4)}}
+@keyframes awaitPulseOpp{from{box-shadow:0 0 0 0 rgba(240,112,64,.3)}to{box-shadow:0 0 8px 2px rgba(240,112,64,.4)}}
+.await-banner{padding:4px 8px;background:var(--ornbg);border:1px solid var(--orn);border-radius:6px;font-size:10px;font-weight:700;color:var(--orn);text-align:center;letter-spacing:.5px;margin-bottom:3px;display:none}
+.await-banner.on{display:block}
 </style>
 
 </head>
@@ -202,7 +210,7 @@ input,select{font-family:inherit;outline:none}
   <div class="tb">
     <button class="tbb" onclick="prevQ()">◀</button><button class="tbb on" id="tb-q">Q1</button><button class="tbb" onclick="nextQ()">▶</button>
     <div style="width:1px;height:18px;background:var(--brd);margin:0 2px"></div>
-    <button class="tbb" onclick="undoLast()">↩ 取消</button>
+    <button class="tbb" onclick="if(_pa){clearPendingAction();pending.my=null;pending.opp=null}else{undoLast()}">↩ 取消</button>
     <button class="tbb" onclick="toggleBox()">📊 BOX</button>
     <button class="tbb" onclick="toggleLog()">📋 ログ</button>
     <div class="tbs"></div>
@@ -440,7 +448,7 @@ function startGame(){
   if(mySt.length!==5){alert('自チームスターター5人を選択');return}
   if(oppSt.length<1){alert('相手スターターを選択');return}
   G={id:uid(),date,opponent:opp,gameName:gname,quarters:qc,oppPlayers:oppP,myQS:new Array(qc).fill(0),oppQS:new Array(qc).fill(0),cq:0,myOC:mySt,oppOC:oppSt,events:[],myTeamId:myTeam.id||'',myTeamName:myTeam.name||'',myPlayers:JSON.parse(JSON.stringify(myTeam.players))};
-  selSide='my';selId=mySt[0];save();closeM('ng-modal');showScreen('game');
+  selSide='my';selId=null;save();closeM('ng-modal');showScreen('game');
 }
 
 // ===== COURT DRAWING (Draw IQ style + visible zone lines) =====
@@ -839,9 +847,9 @@ function getDisplayZone(mx,my){
   return 'MT';
 }
 
-// Court click
+// Court click — no longer requires player pre-selection
 ['my','opp'].forEach(side=>{document.getElementById('cv-'+side).addEventListener('click',function(e){
-  if(!G)return;if(selSide!==side){alert((side==='my'?'自':'相手')+'チームの選手を選択');return}if(selId===null){alert('選手を選択');return}
+  if(!G)return;
   const r=this.getBoundingClientRect(),d=cd[side];if(!d.px)return;
   // Canvas pixel coords (relative to element)
   let cpx=e.clientX-r.left, cpy=e.clientY-r.top;
@@ -869,13 +877,53 @@ function getDisplayZone(mx,my){
   pop.style.left=px2+'px';pop.style.top=py2+'px';pop.classList.add('on');
 })});
 
-function recShot(side,made){const p=pending[side];if(!p||selId===null)return;const pts=p.is3?3:2;
-  G.events.push({id:uid(),q:G.cq,side,pid:selId,type:'SHOT',made,pts:made?pts:0,st:p.is3?'3PT':'2PT',x:p.x,y:p.y,zone:p.zone,ts:Date.now()});
-  if(made)(side==='my'?G.myQS:G.oppQS)[G.cq]+=pts;pending[side]=null;document.getElementById('sp-'+side).classList.remove('on');save();drawCourt(side);updateAll()}
-function canShot(side){pending[side]=null;document.getElementById('sp-'+side).classList.remove('on')}
+function recShot(side,made){
+  const p=pending[side];if(!p)return;
+  p.made=made;
+  document.getElementById('sp-'+side).classList.remove('on');
+  // Enter awaiting-player mode: user taps player in column to confirm
+  setPendingAction(side,'SHOT',0);
+}
+function commitShot(side,pid){
+  const p=pending[side];if(!p)return;
+  const pts=p.is3?3:2;
+  G.events.push({id:uid(),q:G.cq,side,pid,type:'SHOT',made:p.made,pts:p.made?pts:0,st:p.is3?'3PT':'2PT',x:p.x,y:p.y,zone:p.zone,ts:Date.now()});
+  if(p.made)(side==='my'?G.myQS:G.oppQS)[G.cq]+=pts;
+  pending[side]=null;save();drawCourt(side);updateAll();
+}
+function canShot(side){pending[side]=null;document.getElementById('sp-'+side).classList.remove('on');clearPendingAction()}
 
-function qStat(type,pts){if(!G||selId===null){alert('選手を選択');return}G.events.push({id:uid(),q:G.cq,side:selSide,pid:selId,type,made:type.includes('MADE'),pts,ts:Date.now()});if(pts>0)(selSide==='my'?G.myQS:G.oppQS)[G.cq]+=pts;save();updateAll()}
-function selAndStat(side,type,pts){if(selSide!==side){alert((side==='my'?'自':'相手')+'チームの選手を選択');return}qStat(type,pts)}
+// Pending action state: waiting for player tap
+var _pa=null; // {side, type, pts, isShot}
+
+function setPendingAction(side,type,pts){
+  const labels={'SHOT':'シュート','FT_MADE':'FT成功','FT_MISS':'FT失敗','OR':'Oリバウンド','DR':'Dリバウンド','AST':'アシスト','STL':'スティール','BLK':'ブロック','TO':'ターンオーバー','PF':'ファウル','DEF':'DEF'};
+  _pa={side,type,pts,isShot:type==='SHOT',label:labels[type]||type};
+  selSide=side;selId=null;
+  renderPlayers();renderSC('my');renderSC('opp');
+}
+function clearPendingAction(){_pa=null;selId=null;renderPlayers();renderSC('my');renderSC('opp')}
+
+function selAndStat(side,type,pts){
+  if(!G)return;
+  // Always enter pending action mode — user picks player from column
+  setPendingAction(side,type,pts);
+}
+
+// Called when player button is tapped while a pending action exists
+function commitPendingAction(pid){
+  if(!_pa||!G)return;
+  const{side,type,pts,isShot}=_pa;
+  if(isShot){
+    commitShot(side,pid);
+  }else{
+    G.events.push({id:uid(),q:G.cq,side,pid,type,made:type.includes('MADE'),pts,ts:Date.now()});
+    if(pts>0)(side==='my'?G.myQS:G.oppQS)[G.cq]+=pts;
+    save();updateAll();
+  }
+  _pa=null;selId=null;
+  renderPlayers();renderSC('my');renderSC('opp');
+}
 function undoLast(){if(!G||!G.events.length)return;const l=G.events.pop();if(l.pts&&l.made)(l.side==='my'?G.myQS:G.oppQS)[l.q]-=l.pts;save();drawCourt('my');drawCourt('opp');updateAll()}
 
 // Delete specific event by ID (for event log)
@@ -913,6 +961,12 @@ function renderPC(side){
   const ps=side==='my'?myTeam.players:G.oppPlayers,oc=side==='my'?G.myOC:G.oppOC;
   // Sort on-court by number
   sortOC(side);
+  // Show pending action banner
+  if(_pa&&_pa.side===side){
+    const ban=document.createElement('div');ban.className='await-banner on';
+    ban.innerHTML=_pa.label+' <span style="font-size:8px;opacity:.7">▼選手をタップ</span>';
+    col.appendChild(ban);
+  }
   const lbl1=document.createElement('div');lbl1.className='clbl';lbl1.textContent='ON COURT';col.appendChild(lbl1);
   oc.forEach(idx=>{const p=ps[idx];if(p)col.appendChild(mkPB(p,idx,side,true))});
   const lbl2=document.createElement('div');lbl2.className='clbl';lbl2.style.marginTop='6px';lbl2.textContent='BENCH';col.appendChild(lbl2);
@@ -924,10 +978,22 @@ function renderPC(side){
 }
 function mkPB(p,idx,side,onCourt){
   const b=document.createElement('button'),isSel=selSide===side&&selId===idx;
-  b.className='pbtn'+(isSel?(side==='opp'?' osel':' sel'):'');
+  const isAwaiting=_pa&&_pa.side===side;
+  b.className='pbtn'+(isSel?(side==='opp'?' osel':' sel'):'')+(isAwaiting?(side==='opp'?' awaiting-opp':' awaiting'):'');
   b.dataset.side=side;b.dataset.idx=idx;b.dataset.oncourt=onCourt?'1':'0';
   b.innerHTML=`<span class="dot ${onCourt?(side==='opp'?'oon':'on'):'off'}"></span><span class="pn">#${p.number}</span><span class="pnm">${p.name}</span>`;
-  b.addEventListener('click',e=>{if(_drd.didDrag)return;e.stopPropagation();selSide=side;selId=idx;renderPlayers();renderSC('my');renderSC('opp')});
+  b.addEventListener('click',e=>{if(_drd.didDrag)return;e.stopPropagation();
+    if(_pa&&_pa.side===side){
+      // Pending action exists for this side — commit with this player
+      commitPendingAction(idx);
+    }else if(_pa&&_pa.side!==side){
+      // Wrong side — ignore
+    }else{
+      // No pending action — toggle selection for viewing stats
+      if(selSide===side&&selId===idx){selId=null}else{selSide=side;selId=idx}
+      renderPlayers();renderSC('my');renderSC('opp');
+    }
+  });
   // Long-press drag start
   b.addEventListener('pointerdown',e=>{if(e.button!==0)return;_drd.startX=e.clientX;_drd.startY=e.clientY;_drd.srcSide=side;_drd.srcIdx=idx;_drd.srcOnCourt=onCourt;_drd.srcEl=b;_drd.didDrag=false;
     _drd.timer=setTimeout(()=>{_drd.active=true;_drd.didDrag=true;b.classList.add('dragging');
@@ -1415,7 +1481,7 @@ function renderHist(){const l=document.getElementById('hlist');if(!games.length)
     d.innerHTML=`<div class="ghi-d">${g.date}</div><div class="ghi-t"><div>${g.myTeamName||myTeam.name||'MY'} vs ${g.opponent}</div>${gn}</div><div class="ghi-s">${g.myScore} - ${g.oppScore}</div><button class="ghi-x" style="opacity:1;background:var(--bluebg);color:var(--blue)" onclick="editGameInfo('${g.id}',event)">編集</button><button class="ghi-x" onclick="delG('${g.id}',event)">削除</button>`;
     d.onclick=e=>{if(e.target.classList.contains('ghi-x'))return;ldG(g.id)};l.appendChild(d)})}
 function delG(id,e){e.stopPropagation();if(!confirm('削除しますか？'))return;games=games.filter(g=>g.id!==id);save();renderHist()}
-function ldG(id){const g=games.find(g=>g.id===id);if(!g||!g.data)return;G=JSON.parse(JSON.stringify(g.data));selSide='my';selId=G.myOC[0]||0;save();showScreen('game')}
+function ldG(id){const g=games.find(g=>g.id===id);if(!g||!g.data)return;G=JSON.parse(JSON.stringify(g.data));selSide='my';selId=null;save();showScreen('game')}
 function editGameInfo(id,e){
   e.stopPropagation();
   const g=games.find(g=>g.id===id);if(!g)return;
@@ -1447,7 +1513,7 @@ function closeGameEdit(){
 }
 
 window.addEventListener('resize',()=>{if(G){drawCourt('my');drawCourt('opp')}});
-load();if(G){selSide='my';selId=G.myOC[0]||0;showScreen('game')}
+load();if(G){selSide='my';selId=null;showScreen('game')}
 
 // ============================================================
 // PDF EXPORT — BOX SCORE + team charts + all player charts
@@ -1640,12 +1706,12 @@ async function exportBoxPDF(){
 
   // MY team label
   c1.font='600 '+mm(3)+'px Oswald,sans-serif';c1.fillStyle=C.accent;
-  c1.fillText(myLabel,mm(10),mm(tblY+1));tblY+=2.5;
+  c1.fillText(myLabel,mm(10),mm(tblY+1));tblY+=4;
   tblY=drawTbl(c1,tblY,myTeam.players,'my','all',C.accent);
-  tblY+=1;
+  tblY+=2;
   // OPP team label
   c1.font='600 '+mm(3)+'px Oswald,sans-serif';c1.fillStyle=C.opp;
-  c1.fillText(oppLabel,mm(10),mm(tblY+1));tblY+=2.5;
+  c1.fillText(oppLabel,mm(10),mm(tblY+1));tblY+=4;
   drawTbl(c1,tblY,G.oppPlayers,'opp','all',C.opp);
 
   // Footer bar
@@ -1925,7 +1991,7 @@ onAuthStateChanged(auth,async user=>{
   if(user){
     await fbLoad();
     startSync();
-    if(window.G){window.selSide='my';window.selId=window.G.myOC[0]||0;window.showScreen('game')}
+    if(window.G){window.selSide='my';window.selId=null;window.showScreen('game')}
   }
 });
 </script>
