@@ -280,6 +280,7 @@ input,select{font-family:inherit;outline:none}
     <div id="ng-opp-select"></div>
     <input type="text" id="ng-opp" placeholder="またはチーム名を入力" style="margin-top:4px">
     <label>日付</label><input type="date" id="ng-date">
+    <label>試合名 <span style="font-weight:400;color:var(--t3)">(任意)</span></label><input type="text" id="ng-gname" placeholder="例: 春季大会1回戦 / 練習試合">
     <label>クォーター数</label><select id="ng-qc"><option value="1">1Q</option><option value="2">2Q</option><option value="3">3Q</option><option value="4" selected>4Q</option></select>
   </div>
   <div style="flex:0 0 48%"><label>相手チーム選手 <span style="font-weight:400;color:var(--t3)">(保存チーム選択時は自動入力)</span></label><div class="ple" id="ng-opp-list"></div><button class="apb" onclick="addPR('ng-opp-list')">+ 追加</button></div></div>
@@ -413,7 +414,7 @@ function delOppTeam(i,e){e.stopPropagation();if(!confirm(`${oppTeams[i].name}を
 // New Game
 function openNewGame(){
   if(!myTeam.players.length){alert('先にチーム設定で選手を登録してください');return}
-  document.getElementById('ng-opp').value='';document.getElementById('ng-date').value=new Date().toISOString().slice(0,10);
+  document.getElementById('ng-opp').value='';document.getElementById('ng-date').value=new Date().toISOString().slice(0,10);document.getElementById('ng-gname').value='';
   // Saved opp team buttons
   const sel=document.getElementById('ng-opp-select');
   if(oppTeams.length){sel.innerHTML='<div class="saved-teams">'+oppTeams.map((t,i)=>`<button class="st-chip" onclick="loadOppForGame(${i})">${t.name}</button>`).join('')+'</div>'}else{sel.innerHTML=''}
@@ -430,14 +431,14 @@ function getOppPM(){const ps=[];document.querySelectorAll('#ng-opp-list .pr').fo
 function renderSS(side){const el=document.getElementById(side==='my'?'ng-mys':'ng-ops');el.style.cssText='display:flex;flex-wrap:wrap;gap:5px';el.innerHTML='';const ps=side==='my'?myTeam.players:getOppPM();ps.forEach((p,i)=>{const b=document.createElement('button');b.className='tbb';b.textContent=`#${p.number} ${p.name}`;b.dataset.idx=i;b.onclick=function(){this.classList.toggle('on');if(el.querySelectorAll('.on').length>5)this.classList.remove('on')};if(i<5)b.classList.add('on');el.appendChild(b)})}
 document.getElementById('ng-opp-list').addEventListener('input',()=>setTimeout(()=>renderSS('opp'),150));
 function startGame(){
-  const opp=document.getElementById('ng-opp').value.trim()||'相手チーム',date=document.getElementById('ng-date').value,qc=+document.getElementById('ng-qc').value,oppP=getOppPM();
+  const opp=document.getElementById('ng-opp').value.trim()||'相手チーム',date=document.getElementById('ng-date').value,qc=+document.getElementById('ng-qc').value,oppP=getOppPM(),gname=document.getElementById('ng-gname').value.trim();
   if(!oppP.length){alert('相手チームの選手を登録してください');return}
   const mySt=[],oppSt=[];
   document.querySelectorAll('#ng-mys .tbb.on').forEach(b=>mySt.push(+b.dataset.idx));
   document.querySelectorAll('#ng-ops .tbb.on').forEach(b=>oppSt.push(+b.dataset.idx));
   if(mySt.length!==5){alert('自チームスターター5人を選択');return}
   if(oppSt.length<1){alert('相手スターターを選択');return}
-  G={id:uid(),date,opponent:opp,quarters:qc,oppPlayers:oppP,myQS:new Array(qc).fill(0),oppQS:new Array(qc).fill(0),cq:0,myOC:mySt,oppOC:oppSt,events:[],myTeamId:myTeam.id||'',myTeamName:myTeam.name||'',myPlayers:JSON.parse(JSON.stringify(myTeam.players))};
+  G={id:uid(),date,opponent:opp,gameName:gname,quarters:qc,oppPlayers:oppP,myQS:new Array(qc).fill(0),oppQS:new Array(qc).fill(0),cq:0,myOC:mySt,oppOC:oppSt,events:[],myTeamId:myTeam.id||'',myTeamName:myTeam.name||'',myPlayers:JSON.parse(JSON.stringify(myTeam.players))};
   selSide='my';selId=mySt[0];save();closeM('ng-modal');showScreen('game');
 }
 
@@ -852,8 +853,10 @@ function getDisplayZone(mx,my){
     cpx=dx*Math.cos(rad)-dy*Math.sin(rad)+d.drawW/2;
     cpy=dx*Math.sin(rad)+dy*Math.cos(rad)+d.drawH/2;
   }
-  const mx=(cpx-d.oX)/d.px,my=14-(cpy-d.oY)/d.px;
-  if(mx<0||mx>15||my<0||my>14)return;
+  let mx=(cpx-d.oX)/d.px,my=14-(cpy-d.oY)/d.px;
+  // Allow taps slightly outside court, clamp to valid range
+  if(mx<-1.5||mx>16.5||my<-1.5||my>15.5)return;
+  mx=Math.max(0,Math.min(15,mx));my=Math.max(0,Math.min(14,my));
   pending[side]={x:mx,y:my,zone:getZone(mx,my),is3:is3pt(mx,my)};
   const pop=document.getElementById('sp-'+side);
   let px2=e.clientX+10,py2=e.clientY-20;
@@ -1402,7 +1405,7 @@ function buildCareerTable(pStats,isAvg){
 function endGame(){if(!G||!confirm('この試合を終了しますか？'))return;
   const myScore=G.myQS.reduce((a,b)=>a+b,0),oppScore=G.oppQS.reduce((a,b)=>a+b,0);
   const existing=games.findIndex(g=>g.id===G.id);
-  const entry={id:G.id,date:G.date,opponent:G.opponent,myScore,oppScore,myTeamId:G.myTeamId||myTeam.id||'',myTeamName:G.myTeamName||myTeam.name||'',data:JSON.parse(JSON.stringify(G))};
+  const entry={id:G.id,date:G.date,opponent:G.opponent,gameName:G.gameName||'',myScore,oppScore,myTeamId:G.myTeamId||myTeam.id||'',myTeamName:G.myTeamName||myTeam.name||'',data:JSON.parse(JSON.stringify(G))};
   if(existing>=0){games[existing]=entry}else{games.push(entry)}
   G=null;localStorage.removeItem('siq_c');save();showScreen('home');
 }
