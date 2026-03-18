@@ -276,12 +276,10 @@ input,select{font-family:inherit;outline:none}
 
 <div class="mover" id="ng-modal"><div class="mdl wide"><h2>新しい試合</h2>
   <div style="display:flex;gap:10px;margin-bottom:10px;align-items:flex-end">
-    <div style="flex:2;min-width:0"><label>対戦相手</label><div id="ng-opp-select" style="margin-bottom:4px"></div><input type="text" id="ng-opp" placeholder="チーム名を入力"></div>
+    <div style="flex:3;min-width:0"><label>対戦相手</label><div id="ng-opp-select" style="margin-bottom:4px"></div><input type="text" id="ng-opp" placeholder="チーム名を入力"></div>
     <div style="flex:2;min-width:0"><label>試合名 <span style="font-weight:400;color:var(--t3)">(任意)</span></label><input type="text" id="ng-gname" placeholder="例: 春季大会1回戦"></div>
-  </div>
-  <div style="display:flex;gap:10px;margin-bottom:14px;align-items:flex-end">
-    <div style="flex:2;min-width:0"><label>日付</label><input type="date" id="ng-date" style="height:42px"></div>
-    <div style="width:100px;flex-shrink:0"><label>Q数</label><select id="ng-qc" style="height:42px"><option value="1">1Q</option><option value="2">2Q</option><option value="3">3Q</option><option value="4" selected>4Q</option></select></div>
+    <div style="flex:2;min-width:0"><label>日付</label><input type="date" id="ng-date" style="-webkit-appearance:none;appearance:none;height:40px;font-size:14px;line-height:1"></div>
+    <div style="width:80px;flex-shrink:0"><label>Q数</label><select id="ng-qc" style="height:40px"><option value="1">1Q</option><option value="2">2Q</option><option value="3">3Q</option><option value="4" selected>4Q</option></select></div>
   </div>
   <div style="display:flex;gap:16px"><div style="flex:1;min-width:0">
     <label>相手チーム選手 <span style="font-weight:400;color:var(--t3)">(保存チーム選択時は自動入力)</span></label><div class="ple" id="ng-opp-list"></div><button class="apb" onclick="addPR('ng-opp-list')">+ 追加</button>
