@@ -790,9 +790,7 @@ function drawShotDots(w,h,shots,teamColor,flip){
 // Zone detection — uses 3P arc distance from basket center (7.5, 1.575)
 // Basket center: x=7.5, y=1.575 (FIBA). 3P radius: 6.75m. Corner distance: 0.9m from sideline.
 function is3pt(mx,my){
-  // Corner zone: below the arc junction point, outside the corner straight lines
   if(mx<0.9||mx>14.1) return true;
-  // Arc zone: distance from basket center >= 6.75
   const dx=mx-7.5,dy=my-1.575;
   return Math.sqrt(dx*dx+dy*dy)>=6.75;
 }
@@ -804,16 +802,10 @@ function getZone(mx,my){
     return my<=pmY?(mx<7.5?'PBL':'PBR'):(mx<7.5?'PTL':'PTR');
   }
   const three=is3pt(mx,my);
-  // Outside paint: use lower cutoff (5.3) to capture elbow-area shots into MTL/MTR
-  const elbowCut=5.3;
-  if(my<=elbowCut){
-    if(three) return mx<7.5?'3CL':'3CR';
-    return mx<7.5?'MBL':'MBR';
-  }
-  // Elbow to FT line (5.3 < my <= 5.8) outside paint → MTL/MTR
+  // Below FT line, outside paint
   if(my<=ftY){
     if(three) return mx<7.5?'3CL':'3CR';
-    return mx<7.5?'MTL':'MTR';
+    return mx<7.5?'MBL':'MBR';
   }
   // Above FT line
   if(three){
@@ -825,27 +817,8 @@ function getZone(mx,my){
   if(mx>pR) return 'MTR';
   return 'MT';
 }
-// Heatmap display zone — strict FT line boundary for clean visuals
-function getDisplayZone(mx,my){
-  const pL=5.05,pR=9.95;
-  const ftY=5.8,pmY=ftY/2;
-  if(mx>=pL&&mx<=pR&&my<=ftY){
-    return my<=pmY?(mx<7.5?'PBL':'PBR'):(mx<7.5?'PTL':'PTR');
-  }
-  const three=is3pt(mx,my);
-  if(my<=ftY){
-    if(three) return mx<7.5?'3CL':'3CR';
-    return mx<7.5?'MBL':'MBR';
-  }
-  if(three){
-    if(mx<pL) return '3WL';
-    if(mx>pR) return '3WR';
-    return '3T';
-  }
-  if(mx<pL) return 'MTL';
-  if(mx>pR) return 'MTR';
-  return 'MT';
-}
+// Display zone is now identical to getZone
+function getDisplayZone(mx,my){return getZone(mx,my)}
 
 // Court click — no longer requires player pre-selection
 ['my','opp'].forEach(side=>{document.getElementById('cv-'+side).addEventListener('click',function(e){
@@ -1173,13 +1146,15 @@ function calcPS(side,pid,qf){
   let ev=G.events.filter(e=>e.side===side&&e.pid===pid);
   if(qf!=='all')ev=ev.filter(e=>e.q===qf);
   const s2=ev.filter(e=>e.type==='SHOT'&&e.st==='2PT'),s3=ev.filter(e=>e.type==='SHOT'&&e.st==='3PT');
-  const fgm=s2.filter(e=>e.made).length+s3.filter(e=>e.made).length,fga=s2.length+s3.length;
+  const twom=s2.filter(e=>e.made).length,twoa=s2.length;
+  const twop=twoa?Math.round(twom/twoa*100):0;
+  const fgm=twom+s3.filter(e=>e.made).length,fga=s2.length+s3.length;
   const tpm=s3.filter(e=>e.made).length,tpa=s3.length;
   const ftm=ev.filter(e=>e.type==='FT_MADE').length,fta=ftm+ev.filter(e=>e.type==='FT_MISS').length;
   const ftp=fta?Math.round(ftm/fta*100):0;
   const pts=ev.reduce((s,e)=>s+(e.pts||0),0);
   const or_=ev.filter(e=>e.type==='OR').length,dr_=ev.filter(e=>e.type==='DR').length;
-  return{fgm,fga,tpm,tpa,ftm,fta,ftp,pts,or:or_,dr:dr_,reb:or_+dr_,ast:ev.filter(e=>e.type==='AST').length,stl:ev.filter(e=>e.type==='STL').length,blk:ev.filter(e=>e.type==='BLK').length,to:ev.filter(e=>e.type==='TO').length,pf:ev.filter(e=>e.type==='PF').length,def:ev.filter(e=>e.type==='DEF').length};
+  return{twom,twoa,twop,fgm,fga,tpm,tpa,ftm,fta,ftp,pts,or:or_,dr:dr_,reb:or_+dr_,ast:ev.filter(e=>e.type==='AST').length,stl:ev.filter(e=>e.type==='STL').length,blk:ev.filter(e=>e.type==='BLK').length,to:ev.filter(e=>e.type==='TO').length,pf:ev.filter(e=>e.type==='PF').length,def:ev.filter(e=>e.type==='DEF').length};
 }
 function calcEff(s){return(s.pts+s.reb+s.ast+s.stl+s.blk)-((s.fga-s.fgm)+(s.fta-s.ftm)+s.to)}
 
@@ -1234,14 +1209,15 @@ function renderBox(){if(!G)return;const ct=document.getElementById('bs-ct');
     h+=`</div><div style="display:flex;gap:10px;overflow:hidden;max-height:340px" id="bs-player-row-${side}"></div></div>`;
 
     // Stats table — now includes FT%
-    h+=`<table class="bt"><thead><tr><th>選手</th><th>PTS</th><th>FG</th><th>FG%</th><th>3P</th><th>3P%</th><th>FT</th><th>FT%</th><th>OR</th><th>DR</th><th>REB</th><th>AST</th><th>STL</th><th>BLK</th><th>TO</th><th>PF</th><th>DEF</th><th>EFF</th></tr></thead><tbody>`;
+    h+=`<table class="bt"><thead><tr><th>選手</th><th>PTS</th><th>2P</th><th>2P%</th><th>3P</th><th>3P%</th><th>FG</th><th>FG%</th><th>FT</th><th>FT%</th><th>OR</th><th>DR</th><th>REB</th><th>AST</th><th>STL</th><th>BLK</th><th>TO</th><th>PF</th><th>DEF</th><th>EFF</th></tr></thead><tbody>`;
     all.forEach(s=>{const p=ps[s.i],eff=calcEff(s);
       const fgp=s.fga?Math.round(s.fgm/s.fga*100):0,tpp=s.tpa?Math.round(s.tpm/s.tpa*100):0;
-      h+=`<tr><td>#${p.number} ${p.name}</td><td class="${s.pts>=10?'hi':''}">${s.pts}</td><td>${s.fgm}/${s.fga}</td><td>${fgp}%</td><td>${s.tpm}/${s.tpa}</td><td>${tpp}%</td><td>${s.ftm}/${s.fta}</td><td>${s.ftp}%</td><td>${s.or}</td><td>${s.dr}</td><td>${s.reb}</td><td>${s.ast}</td><td>${s.stl}</td><td>${s.blk}</td><td>${s.to}</td><td>${s.pf}</td><td>${s.def}</td><td style="font-weight:700">${eff}</td></tr>`});
+      h+=`<tr><td>#${p.number} ${p.name}</td><td class="${s.pts>=10?'hi':''}">${s.pts}</td><td>${s.twom}/${s.twoa}</td><td>${s.twop}%</td><td>${s.tpm}/${s.tpa}</td><td>${tpp}%</td><td>${s.fgm}/${s.fga}</td><td>${fgp}%</td><td>${s.ftm}/${s.fta}</td><td>${s.ftp}%</td><td>${s.or}</td><td>${s.dr}</td><td>${s.reb}</td><td>${s.ast}</td><td>${s.stl}</td><td>${s.blk}</td><td>${s.to}</td><td>${s.pf}</td><td>${s.def}</td><td style="font-weight:700">${eff}</td></tr>`});
     const tot=all.reduce((t,s)=>{Object.keys(s).forEach(k=>{if(k!=='i')t[k]=(t[k]||0)+s[k]});return t},{});
     const teff=calcEff(tot),tfgp=tot.fga?Math.round(tot.fgm/tot.fga*100):0,ttp=tot.tpa?Math.round(tot.tpm/tot.tpa*100):0;
     const totFtp=tot.fta?Math.round(tot.ftm/tot.fta*100):0;
-    h+=`<tr class="tot"><td>TOTAL</td><td>${tot.pts||0}</td><td>${tot.fgm||0}/${tot.fga||0}</td><td>${tfgp}%</td><td>${tot.tpm||0}/${tot.tpa||0}</td><td>${ttp}%</td><td>${tot.ftm||0}/${tot.fta||0}</td><td>${totFtp}%</td><td>${tot.or||0}</td><td>${tot.dr||0}</td><td>${tot.reb||0}</td><td>${tot.ast||0}</td><td>${tot.stl||0}</td><td>${tot.blk||0}</td><td>${tot.to||0}</td><td>${tot.pf||0}</td><td>${tot.def||0}</td><td style="font-weight:700">${teff}</td></tr></tbody></table>`;
+    const tot2p=tot.twoa?Math.round(tot.twom/tot.twoa*100):0;
+    h+=`<tr class="tot"><td>TOTAL</td><td>${tot.pts||0}</td><td>${tot.twom||0}/${tot.twoa||0}</td><td>${tot2p}%</td><td>${tot.tpm||0}/${tot.tpa||0}</td><td>${ttp}%</td><td>${tot.fgm||0}/${tot.fga||0}</td><td>${tfgp}%</td><td>${tot.ftm||0}/${tot.fta||0}</td><td>${totFtp}%</td><td>${tot.or||0}</td><td>${tot.dr||0}</td><td>${tot.reb||0}</td><td>${tot.ast||0}</td><td>${tot.stl||0}</td><td>${tot.blk||0}</td><td>${tot.to||0}</td><td>${tot.pf||0}</td><td>${tot.def||0}</td><td style="font-weight:700">${teff}</td></tr></tbody></table>`;
     fullH+=h;
   });
   ct.innerHTML=fullH;
@@ -1311,14 +1287,15 @@ function renderCareer(){
       ps.forEach((p,pi)=>{
         // Use player ID if available, fallback to number+name
         const key=p.id||(p.number+'_'+p.name);
-        if(!pMap[key])pMap[key]={id:p.id||'',number:p.number,name:p.name,gp:0,pts:0,fgm:0,fga:0,tpm:0,tpa:0,ftm:0,fta:0,or:0,dr:0,reb:0,ast:0,stl:0,blk:0,to:0,pf:0,def:0,eff:0};
+        if(!pMap[key])pMap[key]={id:p.id||'',number:p.number,name:p.name,gp:0,pts:0,twom:0,twoa:0,fgm:0,fga:0,tpm:0,tpa:0,ftm:0,fta:0,or:0,dr:0,reb:0,ast:0,stl:0,blk:0,to:0,pf:0,def:0,eff:0};
         // Update name/number to latest (in case they changed)
         if(p.id&&filterTeam.players){const cur=filterTeam.players.find(fp=>fp.id===p.id);if(cur){pMap[key].number=cur.number;pMap[key].name=cur.name}}
         const ev=g.data.events.filter(e=>e.side==='my'&&e.pid===pi);
         if(!ev.length)return;
         pMap[key].gp++;
         const s2=ev.filter(e=>e.type==='SHOT'&&e.st==='2PT'),s3=ev.filter(e=>e.type==='SHOT'&&e.st==='3PT');
-        const fgm=s2.filter(e=>e.made).length+s3.filter(e=>e.made).length,fga=s2.length+s3.length;
+        const twom=s2.filter(e=>e.made).length,twoa=s2.length;
+        const fgm=twom+s3.filter(e=>e.made).length,fga=s2.length+s3.length;
         const tpm=s3.filter(e=>e.made).length,tpa=s3.length;
         const ftm=ev.filter(e=>e.type==='FT_MADE').length,fta=ftm+ev.filter(e=>e.type==='FT_MISS').length;
         const pts=ev.reduce((s,e)=>s+(e.pts||0),0);
@@ -1326,7 +1303,7 @@ function renderCareer(){
         const ast=ev.filter(e=>e.type==='AST').length,stl=ev.filter(e=>e.type==='STL').length;
         const blk=ev.filter(e=>e.type==='BLK').length,to_=ev.filter(e=>e.type==='TO').length;
         const pf=ev.filter(e=>e.type==='PF').length,def_=ev.filter(e=>e.type==='DEF').length;
-        pMap[key].pts+=pts;pMap[key].fgm+=fgm;pMap[key].fga+=fga;pMap[key].tpm+=tpm;pMap[key].tpa+=tpa;
+        pMap[key].pts+=pts;pMap[key].twom+=twom;pMap[key].twoa+=twoa;pMap[key].fgm+=fgm;pMap[key].fga+=fga;pMap[key].tpm+=tpm;pMap[key].tpa+=tpa;
         pMap[key].ftm+=ftm;pMap[key].fta+=fta;pMap[key].or+=or_;pMap[key].dr+=dr_;pMap[key].reb+=(or_+dr_);
         pMap[key].ast+=ast;pMap[key].stl+=stl;pMap[key].blk+=blk;pMap[key].to+=to_;pMap[key].pf+=pf;pMap[key].def+=def_;
         const eff=pts+(or_+dr_)+ast+stl+blk-(fga-fgm)-(fta-ftm)-to_;pMap[key].eff+=eff;
@@ -1452,7 +1429,7 @@ function renderCareer(){
 }
 
 function buildCareerTable(pStats,isAvg){
-  const cols=['選手','GP','PTS','FG','FG%','3P','3P%','FT','FT%','REB','AST','STL','BLK','TO','PF','EFF'];
+  const cols=['選手','GP','PTS','2P','2P%','3P','3P%','FG','FG%','FT','FT%','REB','AST','STL','BLK','TO','PF','EFF'];
   let h=`<div style="overflow-x:auto;margin-bottom:12px"><table class="bt"><thead><tr>`;
   cols.forEach(c=>{h+=`<th>${c}</th>`});
   h+=`</tr></thead><tbody>`;
@@ -1461,7 +1438,8 @@ function buildCareerTable(pStats,isAvg){
     const d=v=>isAvg?(v/gp).toFixed(1):v;
     const fgp=p.fga?Math.round(p.fgm/p.fga*100):0,tpp=p.tpa?Math.round(p.tpm/p.tpa*100):0;
     const ftp=p.fta?Math.round(p.ftm/p.fta*100):0;
-    h+=`<tr><td>#${p.number} ${p.name}</td><td>${p.gp}</td><td class="${p.pts>=10?'hi':''}">${d(p.pts)}</td><td>${isAvg?d(p.fgm)+'/'+d(p.fga):`${p.fgm}/${p.fga}`}</td><td>${fgp}%</td><td>${isAvg?d(p.tpm)+'/'+d(p.tpa):`${p.tpm}/${p.tpa}`}</td><td>${tpp}%</td><td>${isAvg?d(p.ftm)+'/'+d(p.fta):`${p.ftm}/${p.fta}`}</td><td>${ftp}%</td><td>${d(p.reb)}</td><td>${d(p.ast)}</td><td>${d(p.stl)}</td><td>${d(p.blk)}</td><td>${d(p.to)}</td><td>${d(p.pf)}</td><td style="font-weight:700">${d(p.eff)}</td></tr>`;
+    const twop=p.twoa?Math.round(p.twom/p.twoa*100):0;
+    h+=`<tr><td>#${p.number} ${p.name}</td><td>${p.gp}</td><td class="${p.pts>=10?'hi':''}">${d(p.pts)}</td><td>${isAvg?d(p.twom)+'/'+d(p.twoa):`${p.twom}/${p.twoa}`}</td><td>${twop}%</td><td>${isAvg?d(p.tpm)+'/'+d(p.tpa):`${p.tpm}/${p.tpa}`}</td><td>${tpp}%</td><td>${isAvg?d(p.fgm)+'/'+d(p.fga):`${p.fgm}/${p.fga}`}</td><td>${fgp}%</td><td>${isAvg?d(p.ftm)+'/'+d(p.fta):`${p.ftm}/${p.fta}`}</td><td>${ftp}%</td><td>${d(p.reb)}</td><td>${d(p.ast)}</td><td>${d(p.stl)}</td><td>${d(p.blk)}</td><td>${d(p.to)}</td><td>${d(p.pf)}</td><td style="font-weight:700">${d(p.eff)}</td></tr>`;
   });
   h+=`</tbody></table></div>`;
   return h;
@@ -1647,31 +1625,31 @@ async function exportBoxPDF(){
   function drawTbl(ctx,yStart,ps,side,qf,teamColor){
     var all=ps.map(function(_,i){return Object.assign({i:i},calcPS(side,i,qf))});
     var tot=all.reduce(function(t,s){Object.keys(s).forEach(function(k){if(k!=='i')t[k]=(t[k]||0)+s[k]});return t},{});
-    var hdr=['','PTS','FG','FG%','3P','3P%','FT','FT%','OR','DR','REB','AST','STL','BLK','TO','PF','EFF'];
-    var cw=[26,9,13,10,13,10,13,10,7,7,9,9,9,9,7,7,9];
+    var hdr=['','PTS','2P','2P%','3P','3P%','FG','FG%','FT','FT%','OR','DR','REB','AST','STL','BLK','TO','PF','EFF'];
+    var cw=[22,8,11,9,11,9,11,9,11,9,6,6,8,8,8,8,6,6,8];
     var totalW=cw.reduce(function(a,b){return a+b},0);
     var mg=10,rH=2.8,y=yStart;
 
     // Header row bg
     ctx.fillStyle=C.dark;ctx.fillRect(mm(mg),mm(y-1.2),mm(totalW),mm(3.5));
-    ctx.font='700 '+mm(2.4)+'px Inter,sans-serif';ctx.fillStyle='#ffffff';ctx.textBaseline='middle';
+    ctx.font='700 '+mm(2.2)+'px Inter,sans-serif';ctx.fillStyle='#ffffff';ctx.textBaseline='middle';
     var rx=mg;
     hdr.forEach(function(h,i){ctx.textAlign=i===0?'left':'center';ctx.fillText(h,mm(i===0?rx+0.5:rx+cw[i]/2),mm(y+0.55));rx+=cw[i]});
     y+=3;
 
     // Data rows with alternating stripes
-    ctx.font='400 '+mm(2.4)+'px Inter,sans-serif';ctx.textBaseline='middle';
+    ctx.font='400 '+mm(2.2)+'px Inter,sans-serif';ctx.textBaseline='middle';
     all.forEach(function(s,ri){
       if(ri%2===0){ctx.fillStyle=C.stripe;ctx.fillRect(mm(mg),mm(y-1),mm(totalW),mm(rH))}
       ctx.fillStyle=C.black;
       var p=ps[s.i],eff=calcEff(s);
       var fgp=s.fga?Math.round(s.fgm/s.fga*100):0;
       var tpp=s.tpa?Math.round(s.tpm/s.tpa*100):0;
-      var row=['#'+p.number+' '+p.name,s.pts,s.fgm+'/'+s.fga,fgp+'%',s.tpm+'/'+s.tpa,tpp+'%',s.ftm+'/'+s.fta,s.ftp+'%',s.or,s.dr,s.reb,s.ast,s.stl,s.blk,s.to,s.pf,eff];
+      var row=['#'+p.number+' '+p.name,s.pts,s.twom+'/'+s.twoa,s.twop+'%',s.tpm+'/'+s.tpa,tpp+'%',s.fgm+'/'+s.fga,fgp+'%',s.ftm+'/'+s.fta,s.ftp+'%',s.or,s.dr,s.reb,s.ast,s.stl,s.blk,s.to,s.pf,eff];
       rx=mg;
       row.forEach(function(v,i){
-        if(i===1&&s.pts>=10){ctx.fillStyle=teamColor;ctx.font='700 '+mm(2.4)+'px Inter,sans-serif'}
-        else{ctx.fillStyle=C.black;ctx.font='400 '+mm(2.4)+'px Inter,sans-serif'}
+        if(i===1&&s.pts>=10){ctx.fillStyle=teamColor;ctx.font='700 '+mm(2.2)+'px Inter,sans-serif'}
+        else{ctx.fillStyle=C.black;ctx.font='400 '+mm(2.2)+'px Inter,sans-serif'}
         ctx.textAlign=i===0?'left':'center';
         ctx.fillText(String(v),mm(i===0?rx+0.5:rx+cw[i]/2),mm(y+rH/2-0.5));
         rx+=cw[i];
@@ -1686,8 +1664,9 @@ async function exportBoxPDF(){
     var tfgp=tot.fga?Math.round(tot.fgm/tot.fga*100):0;
     var ttp=tot.tpa?Math.round(tot.tpm/tot.tpa*100):0;
     var totFtp2=tot.fta?Math.round(tot.ftm/tot.fta*100):0;
-    ctx.font='700 '+mm(2.4)+'px Inter,sans-serif';ctx.fillStyle='#ffffff';ctx.textBaseline='middle';
-    var totR=['TOTAL',tot.pts||0,(tot.fgm||0)+'/'+(tot.fga||0),tfgp+'%',(tot.tpm||0)+'/'+(tot.tpa||0),ttp+'%',(tot.ftm||0)+'/'+(tot.fta||0),totFtp2+'%',tot.or||0,tot.dr||0,tot.reb||0,tot.ast||0,tot.stl||0,tot.blk||0,tot.to||0,tot.pf||0,teff];
+    var tot2p=tot.twoa?Math.round(tot.twom/tot.twoa*100):0;
+    ctx.font='700 '+mm(2.2)+'px Inter,sans-serif';ctx.fillStyle='#ffffff';ctx.textBaseline='middle';
+    var totR=['TOTAL',tot.pts||0,(tot.twom||0)+'/'+(tot.twoa||0),tot2p+'%',(tot.tpm||0)+'/'+(tot.tpa||0),ttp+'%',(tot.fgm||0)+'/'+(tot.fga||0),tfgp+'%',(tot.ftm||0)+'/'+(tot.fta||0),totFtp2+'%',tot.or||0,tot.dr||0,tot.reb||0,tot.ast||0,tot.stl||0,tot.blk||0,tot.to||0,tot.pf||0,teff];
     rx=mg;
     totR.forEach(function(v,i){
       ctx.textAlign=i===0?'left':'center';
@@ -1772,10 +1751,10 @@ async function exportBoxPDF(){
       px2.font='700 '+mm(5)+'px Oswald,sans-serif';px2.fillStyle=C.dark;
       px2.fillText(p.name,mm(bx+3+Math.max(numW,18)),mm(by+6));
 
-      // Stats chips (now includes FT%)
+      // Stats chips
       var chips=[
         {l:'PTS',v:pStats2.pts},
-        {l:'FG',v:pStats2.fgm+'/'+pStats2.fga+' ('+fgp+'%)'},
+        {l:'2P',v:pStats2.twom+'/'+pStats2.twoa+' ('+pStats2.twop+'%)'},
         {l:'3P',v:pStats2.tpm+'/'+pStats2.tpa+' ('+tpp+'%)'},
         {l:'FT',v:pStats2.ftm+'/'+pStats2.fta+' ('+pStats2.ftp+'%)'},
         {l:'REB',v:pStats2.reb},
@@ -1787,7 +1766,7 @@ async function exportBoxPDF(){
         px2.fillText(ch.l,mm(chipX),mm(by+12));
         px2.font='700 '+mm(2.8)+'px Inter,sans-serif';px2.fillStyle=C.dark;
         px2.fillText(String(ch.v),mm(chipX),mm(by+15));
-        chipX+=ch.l==='FG'||ch.l==='3P'||ch.l==='FT'?30:14;
+        chipX+=ch.l==='2P'||ch.l==='3P'||ch.l==='FT'?30:14;
       });
 
       // Charts
