@@ -316,6 +316,49 @@ function load(){try{let t=localStorage.getItem('siq_t');if(t)myTeam=JSON.parse(t
   let needSave=false;
   [myTeam].concat(myTeams).forEach(t=>{if(t&&t.players)t.players.forEach(p=>{if(!p.id){p.id=uid();needSave=true}})});
   if(needSave)save();
+  // Migration: recalculate zone/is3pt/st for all shot events (fixes coordinate mismatch)
+  migrateZones();
+}
+function migrateZones(){
+  let changed=false;
+  function fixEvents(evts,qsArr){
+    if(!evts)return;
+    // Reset quarter scores from events
+    let recalcScore=false;
+    evts.forEach(ev=>{
+      if(ev.type!=='SHOT'||ev.x===undefined||ev.y===undefined)return;
+      const newZone=getZone(ev.x,ev.y);
+      const new3=is3pt(ev.x,ev.y);
+      const newSt=new3?'3PT':'2PT';
+      const newPts=ev.made?(new3?3:2):0;
+      if(ev.zone!==newZone||ev.st!==newSt||ev.pts!==newPts){
+        ev.zone=newZone;ev.is3=new3;ev.st=newSt;ev.pts=newPts;
+        changed=true;recalcScore=true;
+      }
+    });
+    return recalcScore;
+  }
+  // Fix current game
+  if(G&&G.events){
+    if(fixEvents(G.events)){
+      // Recalculate quarter scores from events
+      G.myQS=new Array(G.quarters).fill(0);G.oppQS=new Array(G.quarters).fill(0);
+      G.events.forEach(ev=>{if(ev.pts&&ev.made)(ev.side==='my'?G.myQS:G.oppQS)[ev.q]+=ev.pts});
+    }
+  }
+  // Fix saved games
+  games.forEach(g=>{
+    if(!g.data||!g.data.events)return;
+    if(fixEvents(g.data.events)){
+      // Recalculate saved quarter scores
+      const nq=g.data.quarters||4;
+      g.data.myQS=new Array(nq).fill(0);g.data.oppQS=new Array(nq).fill(0);
+      g.data.events.forEach(ev=>{if(ev.pts&&ev.made)(ev.side==='my'?g.data.myQS:g.data.oppQS)[ev.q]+=ev.pts});
+      g.myScore=g.data.myQS.reduce((a,b)=>a+b,0);
+      g.oppScore=g.data.oppQS.reduce((a,b)=>a+b,0);
+    }
+  });
+  if(changed)save();
 }
 
 // Nav
@@ -633,14 +676,14 @@ function drawZoneChart(w,h,shots,flip){
   // Key pixel coordinates for lines (using stretched scales)
   const cx=TX(7.5), baseY=TY(0), bOff=pxY*.55, bY=baseY-bOff;
   const kw=pxX*4.9, kx=cx-kw/2;
-  const ftCY_px=TY(5.8); // FT line in pixels (matches getZone's ftY=5.8)
-  const pmY2_px=TY(2.9); // paint mid horizontal
+  const ftCY_px=TY(4.775); // FT line in pixels (matches getZone's ftY=4.775)
+  const pmY2_px=TY(4.775/2); // paint mid horizontal
   const halfY=TY(14);
   const paintL=kx, paintR=kx+kw;
   const cxL=TX(0.9), cxR=TX(14.1); // corner lines
 
   // 3P arc: use ellipse for visual, with real court proportions
-  const r3_m=6.75, bx_m=7.5, by_m=1.575;
+  const r3_m=6.75, bx_m=7.5, by_m=0.55;
   const rx3=r3_m*pxX, ry3=r3_m*pxY;
   const bY_arc=TY(by_m); // basket center for arc drawing
   const dxLpx=cx-cxL;
@@ -728,7 +771,7 @@ function drawZoneChart(w,h,shots,flip){
   }
 
   // Labels use getZone boundary values for positioning (in meters → pixels)
-  const pL_m=5.05, pR_m=9.95, ftY_m=5.8, pmY_m=2.9;
+  const pL_m=5.05, pR_m=9.95, ftY_m=4.775, pmY_m=4.775/2;
 
   // Paint (4 quadrants): y range 0-pmY / pmY-ftY
   drawLabel(TX((pL_m+7.5)/2), TY(pmY_m/2), 'PBL');
@@ -745,17 +788,17 @@ function drawZoneChart(w,h,shots,flip){
   drawLabel(TX(14.55), TY(ftY_m/2), '3CR');
 
   // MTL/MTR: y > ftY, outside paint, inside 3P (elbow/wing mid-range)
-  // y center between ftY(5.8) and arcTop(8.325), weighted down
-  drawLabel(TX(3.8), TY(6.2), 'MTL');
-  drawLabel(TX(11.2), TY(6.2), 'MTR');
+  // y center between ftY(4.775) and arcTop(7.3), weighted down
+  drawLabel(TX(3.8), TY(5.5), 'MTL');
+  drawLabel(TX(11.2), TY(5.5), 'MTR');
 
   // MT: y > ftY, inside paint-width, inside 3P (nail/high post)
-  const arcTopM=1.575+6.75; // 8.325
+  const arcTopM=0.55+6.75; // 7.3
   drawLabel(TX(7.5), TY((ftY_m+arcTopM)/2), 'MT');
 
   // 3WL/3WR: y > ftY, outside 3P, x columns by pL/pR
   const wingY_m=(ftY_m+14)/2; // 9.9
-  const wDy=wingY_m-1.575, wDx=Math.sqrt(Math.max(0,6.75*6.75-wDy*wDy));
+  const wDy=wingY_m-0.55, wDx=Math.sqrt(Math.max(0,6.75*6.75-wDy*wDy));
   drawLabel(TX((0+7.5-wDx)/2), TY(wingY_m), '3WL');
   drawLabel(TX((7.5+wDx+15)/2), TY(wingY_m), '3WR');
 
@@ -787,16 +830,16 @@ function drawShotDots(w,h,shots,teamColor,flip){
   return cv;
 }
 
-// Zone detection — uses 3P arc distance from basket center (7.5, 1.575)
-// Basket center: x=7.5, y=1.575 (FIBA). 3P radius: 6.75m. Corner distance: 0.9m from sideline.
+// Zone detection — uses 3P arc distance from basket center (7.5, 0.55)
+// Basket center: x=7.5, y=0.55 (matches court drawing). 3P radius: 6.75m. Corner distance: 0.9m from sideline.
 function is3pt(mx,my){
   if(mx<0.9||mx>14.1) return true;
-  const dx=mx-7.5,dy=my-1.575;
+  const dx=mx-7.5,dy=my-0.55;
   return Math.sqrt(dx*dx+dy*dy)>=6.75;
 }
 function getZone(mx,my){
   const pL=5.05,pR=9.95;
-  const ftY=5.8,pmY=ftY/2;
+  const ftY=4.775,pmY=ftY/2;
   // Paint (4 zones): inside paint, below FT line
   if(mx>=pL&&mx<=pR&&my<=ftY){
     return my<=pmY?(mx<7.5?'PBL':'PBR'):(mx<7.5?'PTL':'PTR');
@@ -1911,6 +1954,7 @@ function applyRemote(d){
   if(d.oppTeams)window.oppTeams=d.oppTeams;
   if(d.currentGame!==undefined)window.G=d.currentGame;
   window._localUpdatedAt=d.updatedAt||Date.now();
+  migrateZones();
   _origSave();
 }
 
