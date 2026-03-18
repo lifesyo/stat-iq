@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
@@ -160,7 +161,22 @@ input,select{font-family:inherit;outline:none}
 .subg{display:grid;grid-template-columns:1fr 1fr;gap:6px}
 .subpl{padding:8px;border-radius:6px;background:var(--bgc);border:1px solid var(--brd);text-align:center;font-size:11px}.subpl:hover{border-color:var(--acc)}.subpl.onc{border-color:var(--acc);background:var(--accbg)}.subpl.onco{border-color:var(--opp);background:var(--oppbg)}
 ::-webkit-scrollbar{width:3px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:var(--brd);border-radius:2px}
+
+/* Event log overlay */
+.elo{position:fixed;top:0;right:0;width:260px;height:100%;background:var(--bg2);border-left:1px solid var(--brd);display:none;flex-direction:column;z-index:75;box-shadow:-4px 0 24px rgba(0,0,0,.5)}.elo.on{display:flex}
+.elog-hdr{padding:10px 12px;font-size:10px;font-weight:800;color:var(--t3);text-transform:uppercase;letter-spacing:1.5px;border-bottom:1px solid var(--brd);display:flex;align-items:center;justify-content:space-between}
+.elog-close{width:28px;height:28px;border-radius:6px;background:var(--bg3);border:1px solid var(--brd);color:var(--t2);font-size:14px;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:var(--tr)}.elog-close:hover{border-color:var(--red);color:var(--red)}
+.elog-list{flex:1;overflow-y:auto;padding:4px}
+.elog-item{padding:6px 8px;border-radius:6px;font-size:11px;color:var(--t2);border-bottom:1px solid rgba(36,45,58,.3);display:flex;align-items:center;gap:5px;transition:var(--tr)}
+.elog-item:hover{background:var(--bg3)}
+.elog-item .elog-q{font-family:var(--fd);font-size:10px;font-weight:700;color:var(--t3);min-width:22px}
+.elog-item .elog-pn{font-family:var(--fd);font-weight:700;color:var(--t1);min-width:30px}
+.elog-item .elog-act{flex:1;font-size:10px}
+.elog-item .elog-del{font-size:12px;color:var(--red);opacity:0;padding:2px 5px;border-radius:4px;transition:var(--tr);cursor:pointer}
+.elog-item:hover .elog-del{opacity:1}
+.elog-item .elog-del:hover{background:var(--redbg)}
 </style>
+
 </head>
 <body>
 
@@ -188,6 +204,7 @@ input,select{font-family:inherit;outline:none}
     <div style="width:1px;height:18px;background:var(--brd);margin:0 2px"></div>
     <button class="tbb" onclick="undoLast()">↩ 取消</button>
     <button class="tbb" onclick="toggleBox()">📊 BOX</button>
+    <button class="tbb" onclick="toggleLog()">📋 ログ</button>
     <div class="tbs"></div>
     <button class="tbb" onclick="endGame()">■ 終了</button>
   </div>
@@ -201,6 +218,10 @@ input,select{font-family:inherit;outline:none}
     <div class="scol rs" id="opp-scol"></div>
     <div class="pcol right" id="opp-pcol"></div>
   </div>
+</div>
+<div class="elo" id="elo-panel">
+  <div class="elog-hdr"><span>履歴ログ <span id="elog-count" style="color:var(--acc)">0</span></span><button class="elog-close" onclick="toggleLog()">✕</button></div>
+  <div class="elog-list" id="elog-list"></div>
 </div>
 <div class="spop" id="sp-my"><button class="spb made" onclick="recShot('my',true)">○ 成功</button><button class="spb miss" onclick="recShot('my',false)">× 失敗</button><button class="spb cnc" onclick="canShot('my')">取消</button></div>
 <div class="spop" id="sp-opp"><button class="spb made" onclick="recShot('opp',true)">○ 成功</button><button class="spb miss" onclick="recShot('opp',false)">× 失敗</button><button class="spb cnc" onclick="canShot('opp')">取消</button></div>
@@ -232,6 +253,7 @@ input,select{font-family:inherit;outline:none}
 </div>
 
 <!-- Modals -->
+
 <div class="mover" id="tm-modal"><div class="mdl"><h2>自チーム管理</h2>
   <div id="tm-saved-list" style="margin-bottom:12px"></div>
   <hr style="border:none;border-top:1px solid var(--brd);margin:12px 0">
@@ -852,20 +874,50 @@ function canShot(side){pending[side]=null;document.getElementById('sp-'+side).cl
 function qStat(type,pts){if(!G||selId===null){alert('選手を選択');return}G.events.push({id:uid(),q:G.cq,side:selSide,pid:selId,type,made:type.includes('MADE'),pts,ts:Date.now()});if(pts>0)(selSide==='my'?G.myQS:G.oppQS)[G.cq]+=pts;save();updateAll()}
 function selAndStat(side,type,pts){if(selSide!==side){alert((side==='my'?'自':'相手')+'チームの選手を選択');return}qStat(type,pts)}
 function undoLast(){if(!G||!G.events.length)return;const l=G.events.pop();if(l.pts&&l.made)(l.side==='my'?G.myQS:G.oppQS)[l.q]-=l.pts;save();drawCourt('my');drawCourt('opp');updateAll()}
+
+// Delete specific event by ID (for event log)
+function deleteEvent(evId){
+  if(!G)return;
+  const idx=G.events.findIndex(e=>e.id===evId);
+  if(idx<0)return;
+  const ev=G.events[idx];
+  // Reverse score impact
+  if(ev.pts&&ev.made)(ev.side==='my'?G.myQS:G.oppQS)[ev.q]-=ev.pts;
+  if(ev.type==='FT_MADE')(ev.side==='my'?G.myQS:G.oppQS)[ev.q]-=1;
+  G.events.splice(idx,1);
+  save();drawCourt('my');drawCourt('opp');updateAll();
+}
+
 function prevQ(){if(!G||G.cq<=0)return;G.cq--;save();updateQUI()}
 function nextQ(){if(!G||G.cq>=G.quarters-1)return;G.cq++;save();updateQUI()}
 function rotateCourt(side){courtRotation[side]=(courtRotation[side]+90)%360;drawCourt(side)}
 function updateQUI(){if(!G)return;const l='Q'+(G.cq+1);document.getElementById('sb-qn').textContent=l;document.getElementById('tb-q').textContent=l}
+
+// Sort on-court players by number (ascending)
+function sortOC(side){
+  const oc=side==='my'?G.myOC:G.oppOC;
+  const ps=side==='my'?myTeam.players:G.oppPlayers;
+  oc.sort((a,b)=>{
+    const na=parseInt(ps[a]?.number)||999, nb=parseInt(ps[b]?.number)||999;
+    return na-nb;
+  });
+}
 
 // Players
 function renderPlayers(){if(!G)return;renderPC('my');renderPC('opp')}
 function renderPC(side){
   const col=document.getElementById(side+'-pcol');col.innerHTML='';
   const ps=side==='my'?myTeam.players:G.oppPlayers,oc=side==='my'?G.myOC:G.oppOC;
+  // Sort on-court by number
+  sortOC(side);
   const lbl1=document.createElement('div');lbl1.className='clbl';lbl1.textContent='ON COURT';col.appendChild(lbl1);
   oc.forEach(idx=>{const p=ps[idx];if(p)col.appendChild(mkPB(p,idx,side,true))});
   const lbl2=document.createElement('div');lbl2.className='clbl';lbl2.style.marginTop='6px';lbl2.textContent='BENCH';col.appendChild(lbl2);
-  ps.forEach((p,idx)=>{if(!oc.includes(idx))col.appendChild(mkPB(p,idx,side,false))});
+  // Sort bench by number too
+  const benchIdxs=[];
+  ps.forEach((p,idx)=>{if(!oc.includes(idx))benchIdxs.push(idx)});
+  benchIdxs.sort((a,b)=>{const na=parseInt(ps[a]?.number)||999,nb=parseInt(ps[b]?.number)||999;return na-nb});
+  benchIdxs.forEach(idx=>col.appendChild(mkPB(ps[idx],idx,side,false)));
 }
 function mkPB(p,idx,side,onCourt){
   const b=document.createElement('button'),isSel=selSide===side&&selId===idx;
@@ -936,13 +988,34 @@ document.addEventListener('pointerup',e=>{
   _drd.lastTarget=null;
 });
 
-// Stats
+// Stats — with 2P/3P/FT shooting display per player
 function renderSC(side){
   const col=document.getElementById(side+'-scol'),isA=selSide===side,pid=isA?selId:null;
   const evts=G?G.events.filter(e=>e.side===side&&e.pid===pid):[];
   const cnt=t=>evts.filter(e=>e.type===t).length;
   const oh=side==='opp'?'oh':'';
+
+  // Compute shooting stats for selected player
+  let shootInfo='';
+  if(isA&&pid!==null){
+    const s2=evts.filter(e=>e.type==='SHOT'&&e.st==='2PT');
+    const s3=evts.filter(e=>e.type==='SHOT'&&e.st==='3PT');
+    const s2m=s2.filter(e=>e.made).length, s2a=s2.length;
+    const s3m=s3.filter(e=>e.made).length, s3a=s3.length;
+    const ftm=cnt('FT_MADE'), fta=ftm+cnt('FT_MISS');
+    const ftp=fta?Math.round(ftm/fta*100):0;
+    shootInfo=`<div style="padding:4px 6px;background:var(--bgc);border:1px solid var(--brd);border-radius:6px;margin-bottom:4px">
+      <div style="display:flex;gap:6px;justify-content:center;font-family:var(--fd);font-size:12px">
+        <span style="color:var(--t2)">2P</span><span style="color:var(--t1);font-weight:700">${s2m}/${s2a}</span>
+        <span style="color:var(--orn)">3P</span><span style="color:var(--t1);font-weight:700">${s3m}/${s3a}</span>
+        <span style="color:var(--blue)">FT</span><span style="color:var(--t1);font-weight:700">${ftm}/${fta}</span>
+      </div>
+      <div style="text-align:center;font-size:9px;color:var(--t3);margin-top:2px">FT%: ${ftp}%</div>
+    </div>`;
+  }
+
   let h=`<div class="clbl">${side==='my'?(myTeam.name||'MY'):(G?G.opponent:'OPP')}</div>
+    ${shootInfo}
     <div class="sst">シュート</div><div class="sg">
     <button class="stb ${oh}" onclick="selAndStat('${side}','FT_MADE',1)"><span class="sl2">FT○</span><span class="sv2">${isA?cnt('FT_MADE'):'-'}</span></button>
     <button class="stb ${oh}" onclick="selAndStat('${side}','FT_MISS',0)"><span class="sl2">FT×</span><span class="sv2">${isA?cnt('FT_MISS'):'-'}</span></button></div>
@@ -965,6 +1038,40 @@ function renderSC(side){
       <div class="psum-i"><div class="ll">STL</div><div class="vv">${stl}</div></div></div></div>`}}
   col.innerHTML=h;
 }
+
+// Event log toggle & rendering
+function toggleLog(){const el=document.getElementById('elo-panel');el.classList.toggle('on');if(el.classList.contains('on'))renderEventLog()}
+function renderEventLog(){
+  if(!G)return;
+  const list=document.getElementById('elog-list');
+  const countEl=document.getElementById('elog-count');
+  if(!list)return;
+  const evts=G.events.slice().reverse(); // newest first
+  countEl.textContent=evts.length;
+  if(!evts.length){list.innerHTML='<div style="text-align:center;padding:20px;color:var(--t3);font-size:11px">まだ記録がありません</div>';return}
+  let h='';
+  evts.forEach(ev=>{
+    const ps=ev.side==='my'?myTeam.players:G.oppPlayers;
+    const p=ps[ev.pid];
+    const pNum=p?'#'+p.number:'?';
+    const sideColor=ev.side==='my'?'var(--my)':'var(--opp)';
+    let actTxt='';
+    if(ev.type==='SHOT'){
+      actTxt=(ev.st==='3PT'?'3P':'2P')+(ev.made?' ○':' ×');
+    }else if(ev.type==='FT_MADE') actTxt='FT ○';
+    else if(ev.type==='FT_MISS') actTxt='FT ×';
+    else actTxt=ev.type;
+    const ptsTxt=ev.pts?` +${ev.pts}`:'';
+    h+=`<div class="elog-item">
+      <span class="elog-q">Q${ev.q+1}</span>
+      <span class="elog-pn" style="color:${sideColor}">${pNum}</span>
+      <span class="elog-act">${actTxt}${ptsTxt}</span>
+      <span class="elog-del" onclick="event.stopPropagation();if(confirm('この記録を削除しますか？'))deleteEvent('${ev.id}')">✕</span>
+    </div>`;
+  });
+  list.innerHTML=h;
+}
+
 function updateAll(){if(!G)return;
   document.getElementById('sb-ms').textContent=G.myQS.reduce((a,b)=>a+b,0);
   document.getElementById('sb-os').textContent=G.oppQS.reduce((a,b)=>a+b,0);
@@ -974,6 +1081,8 @@ function updateAll(){if(!G)return;
     oq+=`<div class="sb-q"><div class="sb-ql">${ql}</div><div class="sb-qv${ac}">${G.oppQS[i]}</div></div>`;}
   document.getElementById('sb-mq').innerHTML=mq;document.getElementById('sb-oq').innerHTML=oq;
   updateQUI();renderSC('my');renderSC('opp');
+  const eloP=document.getElementById('elo-panel');
+  if(eloP&&eloP.classList.contains('on'))renderEventLog();
 }
 
 // Substitution
@@ -998,9 +1107,10 @@ function calcPS(side,pid,qf){
   const fgm=s2.filter(e=>e.made).length+s3.filter(e=>e.made).length,fga=s2.length+s3.length;
   const tpm=s3.filter(e=>e.made).length,tpa=s3.length;
   const ftm=ev.filter(e=>e.type==='FT_MADE').length,fta=ftm+ev.filter(e=>e.type==='FT_MISS').length;
+  const ftp=fta?Math.round(ftm/fta*100):0;
   const pts=ev.reduce((s,e)=>s+(e.pts||0),0);
   const or_=ev.filter(e=>e.type==='OR').length,dr_=ev.filter(e=>e.type==='DR').length;
-  return{fgm,fga,tpm,tpa,ftm,fta,pts,or:or_,dr:dr_,reb:or_+dr_,ast:ev.filter(e=>e.type==='AST').length,stl:ev.filter(e=>e.type==='STL').length,blk:ev.filter(e=>e.type==='BLK').length,to:ev.filter(e=>e.type==='TO').length,pf:ev.filter(e=>e.type==='PF').length,def:ev.filter(e=>e.type==='DEF').length};
+  return{fgm,fga,tpm,tpa,ftm,fta,ftp,pts,or:or_,dr:dr_,reb:or_+dr_,ast:ev.filter(e=>e.type==='AST').length,stl:ev.filter(e=>e.type==='STL').length,blk:ev.filter(e=>e.type==='BLK').length,to:ev.filter(e=>e.type==='TO').length,pf:ev.filter(e=>e.type==='PF').length,def:ev.filter(e=>e.type==='DEF').length};
 }
 function calcEff(s){return(s.pts+s.reb+s.ast+s.stl+s.blk)-((s.fga-s.fgm)+(s.fta-s.ftm)+s.to)}
 
@@ -1054,14 +1164,15 @@ function renderBox(){if(!G)return;const ct=document.getElementById('bs-ct');
     });
     h+=`</div><div style="display:flex;gap:10px;overflow:hidden;max-height:340px" id="bs-player-row-${side}"></div></div>`;
 
-    // Stats table
-    h+=`<table class="bt"><thead><tr><th>選手</th><th>PTS</th><th>FG</th><th>FG%</th><th>3P</th><th>3P%</th><th>FT</th><th>OR</th><th>DR</th><th>REB</th><th>AST</th><th>STL</th><th>BLK</th><th>TO</th><th>PF</th><th>DEF</th><th>EFF</th></tr></thead><tbody>`;
+    // Stats table — now includes FT%
+    h+=`<table class="bt"><thead><tr><th>選手</th><th>PTS</th><th>FG</th><th>FG%</th><th>3P</th><th>3P%</th><th>FT</th><th>FT%</th><th>OR</th><th>DR</th><th>REB</th><th>AST</th><th>STL</th><th>BLK</th><th>TO</th><th>PF</th><th>DEF</th><th>EFF</th></tr></thead><tbody>`;
     all.forEach(s=>{const p=ps[s.i],eff=calcEff(s);
       const fgp=s.fga?Math.round(s.fgm/s.fga*100):0,tpp=s.tpa?Math.round(s.tpm/s.tpa*100):0;
-      h+=`<tr><td>#${p.number} ${p.name}</td><td class="${s.pts>=10?'hi':''}">${s.pts}</td><td>${s.fgm}/${s.fga}</td><td>${fgp}%</td><td>${s.tpm}/${s.tpa}</td><td>${tpp}%</td><td>${s.ftm}/${s.fta}</td><td>${s.or}</td><td>${s.dr}</td><td>${s.reb}</td><td>${s.ast}</td><td>${s.stl}</td><td>${s.blk}</td><td>${s.to}</td><td>${s.pf}</td><td>${s.def}</td><td style="font-weight:700">${eff}</td></tr>`});
+      h+=`<tr><td>#${p.number} ${p.name}</td><td class="${s.pts>=10?'hi':''}">${s.pts}</td><td>${s.fgm}/${s.fga}</td><td>${fgp}%</td><td>${s.tpm}/${s.tpa}</td><td>${tpp}%</td><td>${s.ftm}/${s.fta}</td><td>${s.ftp}%</td><td>${s.or}</td><td>${s.dr}</td><td>${s.reb}</td><td>${s.ast}</td><td>${s.stl}</td><td>${s.blk}</td><td>${s.to}</td><td>${s.pf}</td><td>${s.def}</td><td style="font-weight:700">${eff}</td></tr>`});
     const tot=all.reduce((t,s)=>{Object.keys(s).forEach(k=>{if(k!=='i')t[k]=(t[k]||0)+s[k]});return t},{});
     const teff=calcEff(tot),tfgp=tot.fga?Math.round(tot.fgm/tot.fga*100):0,ttp=tot.tpa?Math.round(tot.tpm/tot.tpa*100):0;
-    h+=`<tr class="tot"><td>TOTAL</td><td>${tot.pts||0}</td><td>${tot.fgm||0}/${tot.fga||0}</td><td>${tfgp}%</td><td>${tot.tpm||0}/${tot.tpa||0}</td><td>${ttp}%</td><td>${tot.ftm||0}/${tot.fta||0}</td><td>${tot.or||0}</td><td>${tot.dr||0}</td><td>${tot.reb||0}</td><td>${tot.ast||0}</td><td>${tot.stl||0}</td><td>${tot.blk||0}</td><td>${tot.to||0}</td><td>${tot.pf||0}</td><td>${tot.def||0}</td><td style="font-weight:700">${teff}</td></tr></tbody></table>`;
+    const totFtp=tot.fta?Math.round(tot.ftm/tot.fta*100):0;
+    h+=`<tr class="tot"><td>TOTAL</td><td>${tot.pts||0}</td><td>${tot.fgm||0}/${tot.fga||0}</td><td>${tfgp}%</td><td>${tot.tpm||0}/${tot.tpa||0}</td><td>${ttp}%</td><td>${tot.ftm||0}/${tot.fta||0}</td><td>${totFtp}%</td><td>${tot.or||0}</td><td>${tot.dr||0}</td><td>${tot.reb||0}</td><td>${tot.ast||0}</td><td>${tot.stl||0}</td><td>${tot.blk||0}</td><td>${tot.to||0}</td><td>${tot.pf||0}</td><td>${tot.def||0}</td><td style="font-weight:700">${teff}</td></tr></tbody></table>`;
     fullH+=h;
   });
   ct.innerHTML=fullH;
@@ -1202,7 +1313,7 @@ function renderCareer(){
   });
   h+=`</div>`;
 
-  // Player stats table — totals
+  // Player stats table — totals (now includes FT%)
   h+=`<div style="font-family:var(--fd);font-size:14px;color:var(--acc);margin-bottom:6px;border-bottom:1px solid var(--brd);padding-bottom:4px">選手別 — 累計</div>`;
   h+=buildCareerTable(pStats,false);
 
@@ -1272,7 +1383,7 @@ function renderCareer(){
 }
 
 function buildCareerTable(pStats,isAvg){
-  const cols=['選手','GP','PTS','FG','FG%','3P','3P%','FT','REB','AST','STL','BLK','TO','PF','EFF'];
+  const cols=['選手','GP','PTS','FG','FG%','3P','3P%','FT','FT%','REB','AST','STL','BLK','TO','PF','EFF'];
   let h=`<div style="overflow-x:auto;margin-bottom:12px"><table class="bt"><thead><tr>`;
   cols.forEach(c=>{h+=`<th>${c}</th>`});
   h+=`</tr></thead><tbody>`;
@@ -1280,7 +1391,8 @@ function buildCareerTable(pStats,isAvg){
     const gp=p.gp||1;
     const d=v=>isAvg?(v/gp).toFixed(1):v;
     const fgp=p.fga?Math.round(p.fgm/p.fga*100):0,tpp=p.tpa?Math.round(p.tpm/p.tpa*100):0;
-    h+=`<tr><td>#${p.number} ${p.name}</td><td>${p.gp}</td><td class="${p.pts>=10?'hi':''}">${d(p.pts)}</td><td>${isAvg?d(p.fgm)+'/'+d(p.fga):`${p.fgm}/${p.fga}`}</td><td>${fgp}%</td><td>${isAvg?d(p.tpm)+'/'+d(p.tpa):`${p.tpm}/${p.tpa}`}</td><td>${tpp}%</td><td>${isAvg?d(p.ftm)+'/'+d(p.fta):`${p.ftm}/${p.fta}`}</td><td>${d(p.reb)}</td><td>${d(p.ast)}</td><td>${d(p.stl)}</td><td>${d(p.blk)}</td><td>${d(p.to)}</td><td>${d(p.pf)}</td><td style="font-weight:700">${d(p.eff)}</td></tr>`;
+    const ftp=p.fta?Math.round(p.ftm/p.fta*100):0;
+    h+=`<tr><td>#${p.number} ${p.name}</td><td>${p.gp}</td><td class="${p.pts>=10?'hi':''}">${d(p.pts)}</td><td>${isAvg?d(p.fgm)+'/'+d(p.fga):`${p.fgm}/${p.fga}`}</td><td>${fgp}%</td><td>${isAvg?d(p.tpm)+'/'+d(p.tpa):`${p.tpm}/${p.tpa}`}</td><td>${tpp}%</td><td>${isAvg?d(p.ftm)+'/'+d(p.fta):`${p.ftm}/${p.fta}`}</td><td>${ftp}%</td><td>${d(p.reb)}</td><td>${d(p.ast)}</td><td>${d(p.stl)}</td><td>${d(p.blk)}</td><td>${d(p.to)}</td><td>${d(p.pf)}</td><td style="font-weight:700">${d(p.eff)}</td></tr>`;
   });
   h+=`</tbody></table></div>`;
   return h;
@@ -1324,7 +1436,7 @@ function saveGameEdit(){
   g.gameName=n;
   if(g.data){if(d)g.data.date=d;if(o)g.data.opponent=o}
   save();renderHist();
-  document.getElementById('hist-edit').style.display='block'; // keep panel open
+  closeGameEdit();
 }
 function closeGameEdit(){
   document.getElementById('hist-edit').style.display='none';
@@ -1466,31 +1578,31 @@ async function exportBoxPDF(){
   function drawTbl(ctx,yStart,ps,side,qf,teamColor){
     var all=ps.map(function(_,i){return Object.assign({i:i},calcPS(side,i,qf))});
     var tot=all.reduce(function(t,s){Object.keys(s).forEach(function(k){if(k!=='i')t[k]=(t[k]||0)+s[k]});return t},{});
-    var hdr=['','PTS','FG','FG%','3P','3P%','FT','OR','DR','REB','AST','STL','BLK','TO','PF','EFF'];
-    var cw=[28,9,13,11,13,11,13,7,7,9,9,9,9,7,7,9];
+    var hdr=['','PTS','FG','FG%','3P','3P%','FT','FT%','OR','DR','REB','AST','STL','BLK','TO','PF','EFF'];
+    var cw=[26,9,13,10,13,10,13,10,7,7,9,9,9,9,7,7,9];
     var totalW=cw.reduce(function(a,b){return a+b},0);
     var mg=10,rH=2.8,y=yStart;
 
     // Header row bg
     ctx.fillStyle=C.dark;ctx.fillRect(mm(mg),mm(y-1.2),mm(totalW),mm(3.5));
-    ctx.font='700 '+mm(2.6)+'px Inter,sans-serif';ctx.fillStyle='#ffffff';ctx.textBaseline='middle';
+    ctx.font='700 '+mm(2.4)+'px Inter,sans-serif';ctx.fillStyle='#ffffff';ctx.textBaseline='middle';
     var rx=mg;
     hdr.forEach(function(h,i){ctx.textAlign=i===0?'left':'center';ctx.fillText(h,mm(i===0?rx+0.5:rx+cw[i]/2),mm(y+0.55));rx+=cw[i]});
     y+=3;
 
     // Data rows with alternating stripes
-    ctx.font='400 '+mm(2.6)+'px Inter,sans-serif';ctx.textBaseline='middle';
+    ctx.font='400 '+mm(2.4)+'px Inter,sans-serif';ctx.textBaseline='middle';
     all.forEach(function(s,ri){
       if(ri%2===0){ctx.fillStyle=C.stripe;ctx.fillRect(mm(mg),mm(y-1),mm(totalW),mm(rH))}
       ctx.fillStyle=C.black;
       var p=ps[s.i],eff=calcEff(s);
       var fgp=s.fga?Math.round(s.fgm/s.fga*100):0;
       var tpp=s.tpa?Math.round(s.tpm/s.tpa*100):0;
-      var row=['#'+p.number+' '+p.name,s.pts,s.fgm+'/'+s.fga,fgp+'%',s.tpm+'/'+s.tpa,tpp+'%',s.ftm+'/'+s.fta,s.or,s.dr,s.reb,s.ast,s.stl,s.blk,s.to,s.pf,eff];
+      var row=['#'+p.number+' '+p.name,s.pts,s.fgm+'/'+s.fga,fgp+'%',s.tpm+'/'+s.tpa,tpp+'%',s.ftm+'/'+s.fta,s.ftp+'%',s.or,s.dr,s.reb,s.ast,s.stl,s.blk,s.to,s.pf,eff];
       rx=mg;
       row.forEach(function(v,i){
-        if(i===1&&s.pts>=10){ctx.fillStyle=teamColor;ctx.font='700 '+mm(2.6)+'px Inter,sans-serif'}
-        else{ctx.fillStyle=C.black;ctx.font='400 '+mm(2.6)+'px Inter,sans-serif'}
+        if(i===1&&s.pts>=10){ctx.fillStyle=teamColor;ctx.font='700 '+mm(2.4)+'px Inter,sans-serif'}
+        else{ctx.fillStyle=C.black;ctx.font='400 '+mm(2.4)+'px Inter,sans-serif'}
         ctx.textAlign=i===0?'left':'center';
         ctx.fillText(String(v),mm(i===0?rx+0.5:rx+cw[i]/2),mm(y+rH/2-0.5));
         rx+=cw[i];
@@ -1504,8 +1616,9 @@ async function exportBoxPDF(){
     var teff=calcEff(tot);
     var tfgp=tot.fga?Math.round(tot.fgm/tot.fga*100):0;
     var ttp=tot.tpa?Math.round(tot.tpm/tot.tpa*100):0;
-    ctx.font='700 '+mm(2.6)+'px Inter,sans-serif';ctx.fillStyle='#ffffff';ctx.textBaseline='middle';
-    var totR=['TOTAL',tot.pts||0,(tot.fgm||0)+'/'+(tot.fga||0),tfgp+'%',(tot.tpm||0)+'/'+(tot.tpa||0),ttp+'%',(tot.ftm||0)+'/'+(tot.fta||0),tot.or||0,tot.dr||0,tot.reb||0,tot.ast||0,tot.stl||0,tot.blk||0,tot.to||0,tot.pf||0,teff];
+    var totFtp2=tot.fta?Math.round(tot.ftm/tot.fta*100):0;
+    ctx.font='700 '+mm(2.4)+'px Inter,sans-serif';ctx.fillStyle='#ffffff';ctx.textBaseline='middle';
+    var totR=['TOTAL',tot.pts||0,(tot.fgm||0)+'/'+(tot.fga||0),tfgp+'%',(tot.tpm||0)+'/'+(tot.tpa||0),ttp+'%',(tot.ftm||0)+'/'+(tot.fta||0),totFtp2+'%',tot.or||0,tot.dr||0,tot.reb||0,tot.ast||0,tot.stl||0,tot.blk||0,tot.to||0,tot.pf||0,teff];
     rx=mg;
     totR.forEach(function(v,i){
       ctx.textAlign=i===0?'left':'center';
@@ -1571,9 +1684,9 @@ async function exportBoxPDF(){
       var bx=10+col*144,by=17+row*96;
 
       var pShots=getFilteredShots(side,pi,'all');
-      var pStats=calcPS(side,pi,'all');
-      var fgp=pStats.fga?Math.round(pStats.fgm/pStats.fga*100):0;
-      var tpp=pStats.tpa?Math.round(pStats.tpm/pStats.tpa*100):0;
+      var pStats2=calcPS(side,pi,'all');
+      var fgp=pStats2.fga?Math.round(pStats2.fgm/pStats2.fga*100):0;
+      var tpp=pStats2.tpa?Math.round(pStats2.tpm/pStats2.tpa*100):0;
 
       // Player card background
       roundRect(px2,bx,by,138,90,2,null,C.border);
@@ -1590,13 +1703,14 @@ async function exportBoxPDF(){
       px2.font='700 '+mm(5)+'px Oswald,sans-serif';px2.fillStyle=C.dark;
       px2.fillText(p.name,mm(bx+3+Math.max(numW,18)),mm(by+6));
 
-      // Stats chips
+      // Stats chips (now includes FT%)
       var chips=[
-        {l:'PTS',v:pStats.pts},
-        {l:'FG',v:pStats.fgm+'/'+pStats.fga+' ('+fgp+'%)'},
-        {l:'3P',v:pStats.tpm+'/'+pStats.tpa+' ('+tpp+'%)'},
-        {l:'REB',v:pStats.reb},
-        {l:'AST',v:pStats.ast}
+        {l:'PTS',v:pStats2.pts},
+        {l:'FG',v:pStats2.fgm+'/'+pStats2.fga+' ('+fgp+'%)'},
+        {l:'3P',v:pStats2.tpm+'/'+pStats2.tpa+' ('+tpp+'%)'},
+        {l:'FT',v:pStats2.ftm+'/'+pStats2.fta+' ('+pStats2.ftp+'%)'},
+        {l:'REB',v:pStats2.reb},
+        {l:'AST',v:pStats2.ast}
       ];
       var chipX=bx+3;
       chips.forEach(function(ch){
@@ -1604,7 +1718,7 @@ async function exportBoxPDF(){
         px2.fillText(ch.l,mm(chipX),mm(by+12));
         px2.font='700 '+mm(2.8)+'px Inter,sans-serif';px2.fillStyle=C.dark;
         px2.fillText(String(ch.v),mm(chipX),mm(by+15));
-        chipX+=ch.l==='FG'||ch.l==='3P'?32:16;
+        chipX+=ch.l==='FG'||ch.l==='3P'||ch.l==='FT'?30:14;
       });
 
       // Charts
@@ -1637,6 +1751,7 @@ async function exportBoxPDF(){
 // FIREBASE AUTH + FIRESTORE SYNC
 // ============================================================
 </script>
+
 <script type="module">
 import{initializeApp}from'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
 import{getAuth,GoogleAuthProvider,signInWithPopup,onAuthStateChanged,signOut as fbSignOut,browserLocalPersistence,setPersistence}from'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
@@ -1762,8 +1877,10 @@ onAuthStateChanged(auth,async user=>{
   }
 });
 </script>
+
 <script>
 if('serviceWorker' in navigator){navigator.serviceWorker.register('sw.js').catch(()=>{})}
 </script>
+
 </body>
 </html>
