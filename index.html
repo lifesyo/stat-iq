@@ -308,7 +308,17 @@ var bsQFilter='all', bsPlayerIdx={my:-1,opp:-1}, bsFlipChart=false;
 var courtRotation={my:0,opp:0}; // per-team: 0, 90, 180, 270
 
 // Persist
-function save(){localStorage.setItem('siq_t',JSON.stringify(myTeam));localStorage.setItem('siq_g',JSON.stringify(games));localStorage.setItem('siq_o',JSON.stringify(oppTeams));localStorage.setItem('siq_mt',JSON.stringify(myTeams));localStorage.setItem('siq_ati',activeTeamIdx);if(G)localStorage.setItem('siq_c',JSON.stringify(G));var now=Date.now();localStorage.setItem('siq_upd',now);window._localUpdatedAt=now}
+function save(){
+  // Auto-backup current game into games array on every save
+  if(G){
+    var myScore=G.myQS.reduce(function(a,b){return a+b},0);
+    var oppScore=G.oppQS.reduce(function(a,b){return a+b},0);
+    var entry={id:G.id,date:G.date,opponent:G.opponent,gameName:G.gameName||'',myScore:myScore,oppScore:oppScore,myTeamId:G.myTeamId||myTeam.id||'',myTeamName:G.myTeamName||myTeam.name||'',data:JSON.parse(JSON.stringify(G))};
+    var idx=games.findIndex(function(g){return g.id===G.id});
+    if(idx>=0){games[idx]=entry}else{games.push(entry)}
+  }
+  localStorage.setItem('siq_t',JSON.stringify(myTeam));localStorage.setItem('siq_g',JSON.stringify(games));localStorage.setItem('siq_o',JSON.stringify(oppTeams));localStorage.setItem('siq_mt',JSON.stringify(myTeams));localStorage.setItem('siq_ati',activeTeamIdx);if(G)localStorage.setItem('siq_c',JSON.stringify(G));var now=Date.now();localStorage.setItem('siq_upd',now);window._localUpdatedAt=now
+}
 function load(){try{let t=localStorage.getItem('siq_t');if(t)myTeam=JSON.parse(t);let g=localStorage.getItem('siq_g');if(g)games=JSON.parse(g);let o=localStorage.getItem('siq_o');if(o)oppTeams=JSON.parse(o);let c=localStorage.getItem('siq_c');if(c)G=JSON.parse(c);let mt=localStorage.getItem('siq_mt');if(mt)myTeams=JSON.parse(mt);let ai=localStorage.getItem('siq_ati');if(ai!==null)activeTeamIdx=parseInt(ai)||0;let lu=localStorage.getItem('siq_upd');window._localUpdatedAt=lu?parseInt(lu):0}catch(e){}
   // Migration: if myTeams empty but myTeam has data, seed it
   if(!myTeams.length&&myTeam.name){myTeam.id=uid();myTeams.push(JSON.parse(JSON.stringify(myTeam)));activeTeamIdx=0;save()}
@@ -1019,14 +1029,14 @@ document.addEventListener('pointerup',e=>{
       const oc=side==='my'?G.myOC:G.oppOC;
       if(fromOn&&!toOn){
         // On court → Bench: swap
-        const i=oc.indexOf(fromIdx);if(i>=0){oc[i]=toIdx;save();renderPlayers()}
+        const i=oc.indexOf(fromIdx);if(i>=0){oc[i]=toIdx;sortOC(side);save();renderPlayers()}
       }else if(!fromOn&&toOn){
         // Bench → On court: swap
-        const i=oc.indexOf(toIdx);if(i>=0){oc[i]=fromIdx;save();renderPlayers()}
+        const i=oc.indexOf(toIdx);if(i>=0){oc[i]=fromIdx;sortOC(side);save();renderPlayers()}
       }else if(fromOn&&toOn){
         // Both on court: swap positions in OC array
         const iA=oc.indexOf(fromIdx),iB=oc.indexOf(toIdx);
-        if(iA>=0&&iB>=0){oc[iA]=toIdx;oc[iB]=fromIdx;save();renderPlayers()}
+        if(iA>=0&&iB>=0){oc[iA]=toIdx;oc[iB]=fromIdx;sortOC(side);save();renderPlayers()}
       }
       // Both bench: no action needed
     }
@@ -1139,7 +1149,7 @@ function openSub(side){document.getElementById('sub-tl').textContent=(side==='my
     d.className='subpl'+(isOn?(side==='opp'?' onco':' onc'):'');d.textContent=`#${p.number} ${p.name}`;
     d.addEventListener('click',()=>{const c=side==='my'?G.myOC:G.oppOC;
       if(c.includes(i)){if(side==='my')G.myOC=c.filter(x=>x!==i);else G.oppOC=c.filter(x=>x!==i);d.classList.remove('onc','onco')}
-      else{if(c.length>=5){alert('5人まで');return}c.push(i);d.classList.add(side==='opp'?'onco':'onc')}save();renderPlayers()});gr.appendChild(d)});
+      else{if(c.length>=5){alert('5人まで');return}c.push(i);d.classList.add(side==='opp'?'onco':'onc')}sortOC(side);save();renderPlayers()});gr.appendChild(d)});
   document.getElementById('sub-pop').classList.add('on');
 }
 function closeSub(){document.getElementById('sub-pop').classList.remove('on')}
@@ -1451,10 +1461,7 @@ function buildCareerTable(pStats,isAvg){
 
 // End / History
 function endGame(){if(!G||!confirm('この試合を終了しますか？'))return;
-  const myScore=G.myQS.reduce((a,b)=>a+b,0),oppScore=G.oppQS.reduce((a,b)=>a+b,0);
-  const existing=games.findIndex(g=>g.id===G.id);
-  const entry={id:G.id,date:G.date,opponent:G.opponent,gameName:G.gameName||'',myScore,oppScore,myTeamId:G.myTeamId||myTeam.id||'',myTeamName:G.myTeamName||myTeam.name||'',data:JSON.parse(JSON.stringify(G))};
-  if(existing>=0){games[existing]=entry}else{games.push(entry)}
+  // Data is already auto-saved into games[] by save(), just clear active game
   G=null;localStorage.removeItem('siq_c');save();showScreen('home');
 }
 function renderHist(){const l=document.getElementById('hlist');if(!games.length){l.innerHTML='<div class="empty">まだ試合データがありません</div>';return}l.innerHTML='';
@@ -1941,7 +1948,7 @@ async function exportBoxPDF(){
 <script type="module">
 import{initializeApp}from'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
 import{getAuth,GoogleAuthProvider,signInWithPopup,onAuthStateChanged,signOut as fbSignOut,browserLocalPersistence,setPersistence}from'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
-import{getFirestore,doc,setDoc,getDoc,onSnapshot}from'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+import{getFirestore,doc,setDoc,getDoc}from'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 
 const firebaseConfig={
   apiKey:"AIzaSyBO2_N8gi_fGhKv7cQv-yTMvR329d2TLSw",
@@ -1955,16 +1962,10 @@ const app=initializeApp(firebaseConfig);
 const auth=getAuth(app);
 const db=getFirestore(app);
 
-let _fbUser=null,_unsub=null,_saving=false,_snapshotReady=false,_merging=false;
+let _fbUser=null,_merging=false;
 
 // Auth persistence
 setPersistence(auth,browserLocalPersistence).catch(e=>console.warn('Auth persistence:',e));
-
-// Firestore offline cache
-try{
-  const{enableIndexedDbPersistence:_enIdb}=await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
-  if(_enIdb)_enIdb(db).catch(()=>{});
-}catch(e){}
 
 function renderAuthBar(){
   const sec=document.getElementById('auth-section');if(!sec)return;
@@ -1978,8 +1979,7 @@ function renderAuthBar(){
 window._siqSignIn=()=>signInWithPopup(auth,new GoogleAuthProvider());
 window._siqSignOut=async()=>{
   if(!confirm('ログアウトしますか？'))return;
-  if(_unsub){_unsub();_unsub=null}
-  await fbSignOut(auth);_fbUser=null;_snapshotReady=false;renderAuthBar();
+  await fbSignOut(auth);_fbUser=null;renderAuthBar();
 };
 
 renderAuthBar();
@@ -2018,65 +2018,19 @@ function localSnapshot(){
   };
 }
 
-// === SAVE TO FIRESTORE (debounced) ===
-let _fbSaveTimer=null;
+// === SAVE TO FIRESTORE (debounced, simple push — no onSnapshot) ===
+let _fbSaveTimer=null,_fbSaving=false;
 const _origSave=window.save;
 window.save=function(){
   _origSave();
-  // Skip Firestore push if we're in a merge operation or no user
   if(!_fbUser||_merging)return;
-  // Mark saving immediately to block onSnapshot during debounce window
-  _saving=true;
   clearTimeout(_fbSaveTimer);
-  _fbSaveTimer=setTimeout(async()=>{
-    try{
-      const data=localSnapshot();
-      await setDoc(fbDocRef(),data,{merge:true});
-      console.log('[Stat IQ] Firestore save OK');
-    }catch(e){console.error('Firestore save error',e)}
-    _saving=false;
-  },1200);
+  _fbSaveTimer=setTimeout(()=>fbPush(),1500);
 };
 
-// === LOAD FROM FIRESTORE ===
-async function fbLoad(){
-  if(!_fbUser)return;
-  try{
-    const snap=await getDoc(fbDocRef());
-    if(snap.exists()){
-      const d=snap.data();
-      mergeRemoteInto(d);
-      // After merge, push to ensure Firestore has the merged result
-      await fbPush();
-    }else{
-      await fbPush();
-    }
-  }catch(e){console.error('Firestore load error',e)}
-}
-
-// Merge remote data into local — never overwrites active game
-function mergeRemoteInto(d){
-  _merging=true;
-  try{
-    if(d.myTeam&&(!window.myTeam.players||!window.myTeam.players.length)){
-      window.myTeam=d.myTeam;
-    }
-    if(d.myTeams) window.myTeams=mergeMyTeams(window.myTeams,d.myTeams);
-    if(d.games) window.games=mergeGames(window.games,d.games);
-    if(d.oppTeams) window.oppTeams=mergeOppTeams(window.oppTeams,d.oppTeams);
-    // NEVER touch currentGame if local has an active game
-    if(!window.G&&d.currentGame) window.G=d.currentGame;
-    window._localUpdatedAt=Math.max(d.updatedAt||0,window._localUpdatedAt||0);
-    migrateZones();
-    _origSave(); // save to localStorage only, not Firestore (because _merging=true)
-  }finally{
-    _merging=false;
-  }
-}
-
 async function fbPush(){
-  if(!_fbUser)return;
-  _saving=true;
+  if(!_fbUser||_fbSaving)return;
+  _fbSaving=true;
   try{
     const now=Date.now();
     const data=localSnapshot();
@@ -2086,71 +2040,64 @@ async function fbPush(){
     localStorage.setItem('siq_upd',now);
     console.log('[Stat IQ] fbPush OK');
   }catch(e){console.error('fbPush error',e)}
-  _saving=false;
+  _fbSaving=false;
 }
 
-// Real-time sync — skip initial, block during saves, never overwrite active game
-function startSync(){
-  if(_unsub)_unsub();
-  _snapshotReady=false;
-  _unsub=onSnapshot(fbDocRef(),snap=>{
-    if(!_snapshotReady){
-      _snapshotReady=true;
-      return;
-    }
-    if(!snap.exists()||_saving||_merging)return;
-    const d=snap.data();
-    const remoteTs=d.updatedAt||0;
-    const localTs=window._localUpdatedAt||0;
-    // Only merge if remote is strictly newer
-    if(remoteTs<=localTs)return;
-    // If user is actively playing a game, only merge background data (games list, etc.)
-    // Do NOT touch G or trigger UI refresh that causes whiteout
-    const gameActive=window.G&&document.getElementById('game').classList.contains('active');
-    _merging=true;
-    try{
-      if(d.myTeams) window.myTeams=mergeMyTeams(window.myTeams,d.myTeams);
-      if(d.games) window.games=mergeGames(window.games,d.games);
-      if(d.oppTeams) window.oppTeams=mergeOppTeams(window.oppTeams,d.oppTeams);
-      if(!gameActive){
-        if(d.myTeam&&(!window.myTeam.players||!window.myTeam.players.length)) window.myTeam=d.myTeam;
-        if(!window.G&&d.currentGame) window.G=d.currentGame;
-      }
-      window._localUpdatedAt=Math.max(remoteTs,localTs);
-      _origSave();
-    }finally{
-      _merging=false;
-    }
-    // Only refresh UI if NOT on active game screen
-    if(!gameActive&&window.G){
-      window.renderPlayers();window.updateAll();
-      try{window.drawCourt('my');window.drawCourt('opp')}catch(e){}
-    }
-  });
-}
-
-// Online reconnect — fetch remote, merge, push
-window.addEventListener('online',async()=>{
+// === LOAD FROM FIRESTORE (on login & online reconnect only) ===
+async function fbLoad(){
   if(!_fbUser)return;
-  console.log('[Stat IQ] Back online, syncing...');
   try{
     const snap=await getDoc(fbDocRef());
-    if(snap.exists()) mergeRemoteInto(snap.data());
-    await fbPush();
-  }catch(e){
-    console.error('[Stat IQ] Online sync error',e);
-    try{await fbPush()}catch(e2){}
+    if(snap.exists()){
+      mergeRemoteInto(snap.data());
+      await fbPush(); // push merged result back
+    }else{
+      await fbPush(); // no remote, push local
+    }
+  }catch(e){console.error('Firestore load error',e)}
+}
+
+// Merge remote data into local — NEVER overwrites active game (G)
+function mergeRemoteInto(d){
+  _merging=true;
+  try{
+    // myTeam: only take remote if local has no players
+    if(d.myTeam&&(!window.myTeam.players||!window.myTeam.players.length)){
+      window.myTeam=d.myTeam;
+    }
+    if(d.myTeams) window.myTeams=mergeMyTeams(window.myTeams,d.myTeams);
+    if(d.games) window.games=mergeGames(window.games,d.games);
+    if(d.oppTeams) window.oppTeams=mergeOppTeams(window.oppTeams,d.oppTeams);
+    // NEVER touch G if local has an active game
+    if(!window.G&&d.currentGame) window.G=d.currentGame;
+    window._localUpdatedAt=Math.max(d.updatedAt||0,window._localUpdatedAt||0);
+    migrateZones();
+    _origSave();
+  }finally{
+    _merging=false;
+  }
+}
+
+// Online reconnect — pull remote, merge, push
+window.addEventListener('online',()=>{
+  if(_fbUser){
+    console.log('[Stat IQ] Back online');
+    fbLoad();
   }
 });
 
+// Periodic background push while app is active (every 30s)
+setInterval(()=>{
+  if(_fbUser&&!_fbSaving&&!_merging) fbPush();
+},30000);
+
 onAuthStateChanged(auth,async user=>{
+  if(_fbUser&&user&&_fbUser.uid===user.uid)return; // skip re-fire for same user
   _fbUser=user;
   window._fbUser=user;
-  _snapshotReady=false;
   renderAuthBar();
   if(user){
     await fbLoad();
-    startSync();
     if(window.G){window.selSide='my';window.selId=null;window.showScreen('game')}
   }
 });
