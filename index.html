@@ -176,12 +176,10 @@ input,select{font-family:inherit;outline:none}
 .elog-item:hover .elog-del{opacity:1}
 .elog-item .elog-del:hover{background:var(--redbg)}
 
-/* Pending action state — player buttons pulse when waiting for selection */
-.pbtn.awaiting{animation:awaitPulse .8s ease-in-out infinite alternate;border-color:var(--orn);background:var(--ornbg)}
-.pbtn.awaiting-opp{animation:awaitPulseOpp .8s ease-in-out infinite alternate;border-color:var(--opp);background:var(--oppbg)}
-@keyframes awaitPulse{from{box-shadow:0 0 0 0 rgba(245,158,66,.3)}to{box-shadow:0 0 8px 2px rgba(245,158,66,.4)}}
-@keyframes awaitPulseOpp{from{box-shadow:0 0 0 0 rgba(240,112,64,.3)}to{box-shadow:0 0 8px 2px rgba(240,112,64,.4)}}
-.await-banner{padding:4px 8px;background:var(--ornbg);border:1px solid var(--orn);border-radius:6px;font-size:10px;font-weight:700;color:var(--orn);text-align:center;letter-spacing:.5px;margin-bottom:3px;display:none}
+/* Pending action state — yellow border on player buttons when waiting for player selection */
+.pbtn.awaiting{border-color:#ffd600;background:rgba(255,214,0,.08);box-shadow:0 0 8px rgba(255,214,0,.25)}
+.pbtn.awaiting:active{transform:scale(.96)}
+.await-banner{padding:5px 8px;background:rgba(255,214,0,.1);border:1px solid #ffd600;border-radius:6px;font-size:11px;font-weight:700;color:#ffd600;text-align:center;letter-spacing:.5px;margin-bottom:3px;display:none}
 .await-banner.on{display:block}
 </style>
 
@@ -304,6 +302,7 @@ input,select{font-family:inherit;outline:none}
 var myTeam={name:'',players:[]}, G=null, games=[], oppTeams=[];
 var myTeams=[], activeTeamIdx=0; // multiple teams
 var selSide='my', selId=null, pending={my:null,opp:null}, cd={my:{},opp:{}};
+var pendingAction=null; // {side,type,pts,made,shotData} — waiting for player selection
 var bsQFilter='all', bsPlayerIdx={my:-1,opp:-1}, bsFlipChart=false;
 var courtRotation={my:0,opp:0}; // per-team: 0, 90, 180, 270
 
@@ -873,11 +872,11 @@ function getZone(mx,my){
 // Display zone is now identical to getZone
 function getDisplayZone(mx,my){return getZone(mx,my)}
 
-// Court click — requires player pre-selection
+// Court click — stores shot location, then waits for player selection
 ['my','opp'].forEach(side=>{document.getElementById('cv-'+side).addEventListener('click',function(e){
   if(!G)return;
-  // Require a player to be selected first
-  if(selSide!==side||selId===null){return}
+  // If there's already a pending action, cancel it
+  if(pendingAction){pendingAction=null;renderPlayers();renderSC('my');renderSC('opp')}
   const r=this.getBoundingClientRect(),d=cd[side];if(!d.px)return;
   let cpx=e.clientX-r.left, cpy=e.clientY-r.top;
   const rot=d.rot||0;
@@ -905,27 +904,40 @@ function recShot(side,made){
   const p=pending[side];if(!p)return;
   p.made=made;
   document.getElementById('sp-'+side).classList.remove('on');
-  // Directly commit with the pre-selected player
-  const pid=selId;
-  if(pid===null)return;
+  // Create pending action — wait for player selection
   const pts=p.is3?3:2;
-  G.events.push({id:uid(),q:G.cq,side,pid,type:'SHOT',made:p.made,pts:p.made?pts:0,st:p.is3?'3PT':'2PT',x:p.x,y:p.y,zone:p.zone,ts:Date.now()});
-  if(p.made)(side==='my'?G.myQS:G.oppQS)[G.cq]+=pts;
-  pending[side]=null;save();drawCourt(side);updateAll();
+  pendingAction={side,type:'SHOT',pts:made?pts:0,made,shotData:{x:p.x,y:p.y,zone:p.zone,is3:p.is3,st:p.is3?'3PT':'2PT'}};
+  pending[side]=null;
+  selSide=side;selId=null;
+  renderPlayers();renderSC('my');renderSC('opp');
 }
 function canShot(side){pending[side]=null;document.getElementById('sp-'+side).classList.remove('on')}
 
-function selAndStat(side,type,pts){
-  if(!G)return;
-  // Require player pre-selection
-  if(selSide!==side||selId===null){return}
-  const pid=selId;
-  G.events.push({id:uid(),q:G.cq,side,pid,type,made:type.includes('MADE'),pts,ts:Date.now()});
-  if(pts>0)(side==='my'?G.myQS:G.oppQS)[G.cq]+=pts;
-  save();updateAll();
+// Commit pending action with selected player
+function commitPendingAction(pid){
+  if(!pendingAction||!G)return;
+  const a=pendingAction;
+  if(a.type==='SHOT'){
+    const sd=a.shotData;
+    G.events.push({id:uid(),q:G.cq,side:a.side,pid,type:'SHOT',made:a.made,pts:a.pts,st:sd.st,x:sd.x,y:sd.y,zone:sd.zone,ts:Date.now()});
+    if(a.made)(a.side==='my'?G.myQS:G.oppQS)[G.cq]+=a.pts;
+  }else{
+    G.events.push({id:uid(),q:G.cq,side:a.side,pid,type:a.type,made:a.type.includes('MADE'),pts:a.pts,ts:Date.now()});
+    if(a.pts>0)(a.side==='my'?G.myQS:G.oppQS)[G.cq]+=a.pts;
+  }
+  pendingAction=null;selId=null;
+  save();drawCourt('my');drawCourt('opp');updateAll();
 }
 
-function undoLast(){if(!G||!G.events.length)return;const l=G.events.pop();if(l.pts&&l.made)(l.side==='my'?G.myQS:G.oppQS)[l.q]-=l.pts;save();drawCourt('my');drawCourt('opp');updateAll()}
+function selAndStat(side,type,pts){
+  if(!G)return;
+  // Create pending action — wait for player selection
+  pendingAction={side,type,pts,made:type.includes('MADE')};
+  selSide=side;selId=null;
+  renderPlayers();renderSC('my');renderSC('opp');
+}
+
+function undoLast(){if(!G||!G.events.length)return;const l=G.events.pop();if(l.pts&&l.made)(l.side==='my'?G.myQS:G.oppQS)[l.q]-=l.pts;pendingAction=null;selId=null;save();drawCourt('my');drawCourt('opp');updateAll()}
 
 // Delete specific event by ID (for event log)
 function deleteEvent(evId){
@@ -972,12 +984,21 @@ function renderPC(side){
   benchIdxs.forEach(idx=>col.appendChild(mkPB(ps[idx],idx,side,false)));
 }
 function mkPB(p,idx,side,onCourt){
-  const b=document.createElement('button'),isSel=selSide===side&&selId===idx;
-  b.className='pbtn'+(isSel?(side==='opp'?' osel':' sel'):'');
+  const b=document.createElement('button');
+  const isAwaiting=pendingAction&&pendingAction.side===side;
+  const isSel=!pendingAction&&selSide===side&&selId===idx;
+  b.className='pbtn'+(isAwaiting?' awaiting':'')+(isSel?(side==='opp'?' osel':' sel'):'');
   b.dataset.side=side;b.dataset.idx=idx;b.dataset.oncourt=onCourt?'1':'0';
   b.innerHTML=`<span class="dot ${onCourt?(side==='opp'?'oon':'on'):'off'}"></span><span class="pn">#${p.number}</span><span class="pnm">${p.name}</span>`;
   b.addEventListener('click',e=>{if(_drd.didDrag)return;e.stopPropagation();
-    // Toggle selection
+    // If pending action, commit it with this player
+    if(pendingAction&&pendingAction.side===side){
+      commitPendingAction(idx);
+      return;
+    }
+    // If pending action for other side, cancel it first
+    if(pendingAction){pendingAction=null}
+    // Normal toggle selection
     if(selSide===side&&selId===idx){selId=null}else{selSide=side;selId=idx}
     renderPlayers();renderSC('my');renderSC('opp');
   });
@@ -1044,14 +1065,27 @@ document.addEventListener('pointerup',e=>{
   _drd.lastTarget=null;
 });
 
-// Stats — with 2P/3P/FT shooting display per player
+// Stats — always show action buttons; show selected player stats when not in pending mode
 function renderSC(side){
-  const col=document.getElementById(side+'-scol'),isA=selSide===side,pid=isA?selId:null;
-  const evts=G?G.events.filter(e=>e.side===side&&e.pid===pid):[];
+  const col=document.getElementById(side+'-scol');
+  const hasPending=pendingAction&&pendingAction.side===side;
+  const isA=!pendingAction&&selSide===side;
+  const pid=isA?selId:null;
+  const evts=G&&pid!==null?G.events.filter(e=>e.side===side&&e.pid===pid):[];
   const cnt=t=>evts.filter(e=>e.type===t).length;
   const oh=side==='opp'?'oh':'';
 
-  // Compute shooting stats for selected player
+  // Pending action indicator
+  let pendingInfo='';
+  if(hasPending){
+    const actLabel=pendingAction.type==='SHOT'?(pendingAction.shotData.st+(pendingAction.made?' ○':' ×')):pendingAction.type==='FT_MADE'?'FT○':pendingAction.type==='FT_MISS'?'FT×':pendingAction.type;
+    pendingInfo=`<div style="padding:6px 8px;background:rgba(255,214,0,.1);border:1px solid #ffd600;border-radius:6px;margin-bottom:4px;text-align:center">
+      <div style="font-family:var(--fd);font-size:13px;font-weight:700;color:#ffd600">${actLabel}</div>
+      <div style="font-size:9px;color:var(--t2);margin-top:2px">← 選手をタップ</div>
+    </div>`;
+  }
+
+  // Compute shooting stats for selected player (only when not in pending mode)
   let shootInfo='';
   if(isA&&pid!==null){
     const s2=evts.filter(e=>e.type==='SHOT'&&e.st==='2PT');
@@ -1071,20 +1105,20 @@ function renderSC(side){
   }
 
   let h=`<div class="clbl">${side==='my'?(myTeam.name||'MY'):(G?G.opponent:'OPP')}</div>
-    ${shootInfo}
+    ${pendingInfo}${shootInfo}
     <div class="sst">シュート</div><div class="sg">
-    <button class="stb ${oh}" onclick="selAndStat('${side}','FT_MADE',1)"><span class="sl2">FT○</span><span class="sv2">${isA?cnt('FT_MADE'):'-'}</span></button>
-    <button class="stb ${oh}" onclick="selAndStat('${side}','FT_MISS',0)"><span class="sl2">FT×</span><span class="sv2">${isA?cnt('FT_MISS'):'-'}</span></button></div>
+    <button class="stb ${oh}" onclick="selAndStat('${side}','FT_MADE',1)"><span class="sl2">FT○</span><span class="sv2">${isA&&pid!==null?cnt('FT_MADE'):'-'}</span></button>
+    <button class="stb ${oh}" onclick="selAndStat('${side}','FT_MISS',0)"><span class="sl2">FT×</span><span class="sv2">${isA&&pid!==null?cnt('FT_MISS'):'-'}</span></button></div>
     <div class="sst">リバウンド</div><div class="sg">
-    <button class="stb ${oh}" onclick="selAndStat('${side}','OR',0)"><span class="sl2">OR</span><span class="sv2">${isA?cnt('OR'):'-'}</span></button>
-    <button class="stb ${oh}" onclick="selAndStat('${side}','DR',0)"><span class="sl2">DR</span><span class="sv2">${isA?cnt('DR'):'-'}</span></button></div>
+    <button class="stb ${oh}" onclick="selAndStat('${side}','OR',0)"><span class="sl2">OR</span><span class="sv2">${isA&&pid!==null?cnt('OR'):'-'}</span></button>
+    <button class="stb ${oh}" onclick="selAndStat('${side}','DR',0)"><span class="sl2">DR</span><span class="sv2">${isA&&pid!==null?cnt('DR'):'-'}</span></button></div>
     <div class="sst">その他</div><div class="sg">
-    <button class="stb ${oh}" onclick="selAndStat('${side}','AST',0)"><span class="sl2">AST</span><span class="sv2">${isA?cnt('AST'):'-'}</span></button>
-    <button class="stb ${oh}" onclick="selAndStat('${side}','STL',0)"><span class="sl2">STL</span><span class="sv2">${isA?cnt('STL'):'-'}</span></button>
-    <button class="stb ${oh}" onclick="selAndStat('${side}','BLK',0)"><span class="sl2">BLK</span><span class="sv2">${isA?cnt('BLK'):'-'}</span></button>
-    <button class="stb ${oh}" onclick="selAndStat('${side}','TO',0)"><span class="sl2">TO</span><span class="sv2">${isA?cnt('TO'):'-'}</span></button>
-    <button class="stb ${oh}" onclick="selAndStat('${side}','PF',0)"><span class="sl2">PF</span><span class="sv2">${isA?cnt('PF'):'-'}</span></button>
-    <button class="stb ${oh}" onclick="selAndStat('${side}','DEF',0)"><span class="sl2">DEF</span><span class="sv2">${isA?cnt('DEF'):'-'}</span></button></div>`;
+    <button class="stb ${oh}" onclick="selAndStat('${side}','AST',0)"><span class="sl2">AST</span><span class="sv2">${isA&&pid!==null?cnt('AST'):'-'}</span></button>
+    <button class="stb ${oh}" onclick="selAndStat('${side}','STL',0)"><span class="sl2">STL</span><span class="sv2">${isA&&pid!==null?cnt('STL'):'-'}</span></button>
+    <button class="stb ${oh}" onclick="selAndStat('${side}','BLK',0)"><span class="sl2">BLK</span><span class="sv2">${isA&&pid!==null?cnt('BLK'):'-'}</span></button>
+    <button class="stb ${oh}" onclick="selAndStat('${side}','TO',0)"><span class="sl2">TO</span><span class="sv2">${isA&&pid!==null?cnt('TO'):'-'}</span></button>
+    <button class="stb ${oh}" onclick="selAndStat('${side}','PF',0)"><span class="sl2">PF</span><span class="sv2">${isA&&pid!==null?cnt('PF'):'-'}</span></button>
+    <button class="stb ${oh}" onclick="selAndStat('${side}','DEF',0)"><span class="sl2">DEF</span><span class="sv2">${isA&&pid!==null?cnt('DEF'):'-'}</span></button></div>`;
   if(isA&&pid!==null){const p=(side==='my'?myTeam.players:G.oppPlayers)[pid];if(p){
     const pts=evts.reduce((s,e)=>s+(e.pts||0),0),reb=evts.filter(e=>e.type==='OR'||e.type==='DR').length,ast=cnt('AST'),stl=cnt('STL');
     h+=`<div class="psum"><div class="psum-n ${side==='my'?'mc':'oc'}">#${p.number} ${p.name}</div><div class="psum-g">
