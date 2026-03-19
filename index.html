@@ -2162,7 +2162,24 @@ onAuthStateChanged(auth,async user=>{
 </script>
 
 <script>
-if('serviceWorker' in navigator){navigator.serviceWorker.register('sw.js').catch(()=>{})}
+// App version — change this to force cache refresh
+var APP_VERSION='2026031901';
+if('serviceWorker' in navigator){
+  navigator.serviceWorker.register('sw.js').then(function(reg){
+    // Force update check
+    reg.update().catch(function(){});
+  }).catch(function(){});
+  // Clear old caches on version change
+  var lastVer=localStorage.getItem('siq_ver');
+  if(lastVer!==APP_VERSION&&'caches' in window){
+    caches.keys().then(function(names){
+      names.forEach(function(name){caches.delete(name)});
+    }).then(function(){
+      localStorage.setItem('siq_ver',APP_VERSION);
+      if(lastVer)location.reload();
+    });
+  }
+}
 </script>
 
 </body>
