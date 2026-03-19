@@ -1675,17 +1675,17 @@ async function exportBoxPDF(){
     var totalW=cw.reduce(function(a,b){return a+b},0);
     var mg=10,rH=2.8,y=yStart;
 
-    // Header row bg
-    ctx.fillStyle=C.dark;ctx.fillRect(mm(mg),mm(y-1.2),mm(totalW),mm(3.5));
+    // Header row
+    ctx.fillStyle=C.dark;ctx.fillRect(mm(mg),mm(y),mm(totalW),mm(rH));
     ctx.font='700 '+mm(2.2)+'px Inter,sans-serif';ctx.fillStyle='#ffffff';ctx.textBaseline='middle';
     var rx=mg;
-    hdr.forEach(function(h,i){ctx.textAlign=i===0?'left':'center';ctx.fillText(h,mm(i===0?rx+0.5:rx+cw[i]/2),mm(y+0.55));rx+=cw[i]});
-    y+=3;
+    hdr.forEach(function(h,i){ctx.textAlign=i===0?'left':'center';ctx.fillText(h,mm(i===0?rx+0.5:rx+cw[i]/2),mm(y+rH/2));rx+=cw[i]});
+    y+=rH;
 
-    // Data rows with alternating stripes
+    // Data rows
     ctx.font='400 '+mm(2.2)+'px Inter,sans-serif';ctx.textBaseline='middle';
     all.forEach(function(s,ri){
-      if(ri%2===0){ctx.fillStyle=C.stripe;ctx.fillRect(mm(mg),mm(y-1),mm(totalW),mm(rH))}
+      if(ri%2===0){ctx.fillStyle=C.stripe;ctx.fillRect(mm(mg),mm(y),mm(totalW),mm(rH))}
       ctx.fillStyle=C.black;
       var p=ps[s.i],eff=calcEff(s);
       var fgp=s.fga?Math.round(s.fgm/s.fga*100):0;
@@ -1696,15 +1696,14 @@ async function exportBoxPDF(){
         if(i===1&&s.pts>=10){ctx.fillStyle=teamColor;ctx.font='700 '+mm(2.2)+'px Inter,sans-serif'}
         else{ctx.fillStyle=C.black;ctx.font='400 '+mm(2.2)+'px Inter,sans-serif'}
         ctx.textAlign=i===0?'left':'center';
-        ctx.fillText(String(v),mm(i===0?rx+0.5:rx+cw[i]/2),mm(y+rH/2-0.5));
+        ctx.fillText(String(v),mm(i===0?rx+0.5:rx+cw[i]/2),mm(y+rH/2));
         rx+=cw[i];
       });
       y+=rH;
     });
 
     // Total row
-    y+=0.3;
-    ctx.fillStyle=teamColor;ctx.fillRect(mm(mg),mm(y),mm(totalW),mm(rH+0.3));
+    ctx.fillStyle=teamColor;ctx.fillRect(mm(mg),mm(y),mm(totalW),mm(rH));
     var teff=calcEff(tot);
     var tfgp=tot.fga?Math.round(tot.fgm/tot.fga*100):0;
     var ttp=tot.tpa?Math.round(tot.tpm/tot.tpa*100):0;
@@ -1715,27 +1714,27 @@ async function exportBoxPDF(){
     rx=mg;
     totR.forEach(function(v,i){
       ctx.textAlign=i===0?'left':'center';
-      ctx.fillText(String(v),mm(i===0?rx+0.5:rx+cw[i]/2),mm(y+(rH+0.3)/2));
+      ctx.fillText(String(v),mm(i===0?rx+0.5:rx+cw[i]/2),mm(y+rH/2));
       rx+=cw[i];
     });
-    return y+rH+2;
+    return y+rH+1;
   }
 
   var tblY=96;
-  // Section label
-  c1.textAlign='left';c1.font='700 '+mm(3.5)+'px Oswald,sans-serif';c1.fillStyle=C.dark;
-  c1.fillText('BOX SCORE',mm(10),mm(tblY));
-  drawLine(c1,10,tblY+1,pw-10,tblY+1,C.border,0.5);
-  tblY+=3;
+  c1.textAlign='left';c1.textBaseline='middle';
+  c1.font='700 '+mm(3.5)+'px Oswald,sans-serif';c1.fillStyle=C.dark;
+  c1.fillText('BOX SCORE',mm(10),mm(tblY+1.5));
+  drawLine(c1,10,tblY+3,pw-10,tblY+3,C.border,0.5);
+  tblY+=5;
 
   // MY team label
   c1.font='600 '+mm(3)+'px Oswald,sans-serif';c1.fillStyle=C.accent;
-  c1.fillText(myLabel,mm(10),mm(tblY+1));tblY+=4;
+  c1.fillText(myLabel,mm(10),mm(tblY+1.5));tblY+=4;
   tblY=drawTbl(c1,tblY,myTeam.players,'my','all',C.accent);
-  tblY+=2;
+  tblY+=1;
   // OPP team label
   c1.font='600 '+mm(3)+'px Oswald,sans-serif';c1.fillStyle=C.opp;
-  c1.fillText(oppLabel,mm(10),mm(tblY+1));tblY+=4;
+  c1.fillText(oppLabel,mm(10),mm(tblY+1.5));tblY+=4;
   drawTbl(c1,tblY,G.oppPlayers,'opp','all',C.opp);
 
   // Footer bar
@@ -1748,33 +1747,33 @@ async function exportBoxPDF(){
   // ===== QUARTER-BY-QUARTER BOX SCORE PAGES =====
   // Each page fits 2 quarters (MY + OPP tables for each quarter)
   // drawTblCompact: condensed version for quarter tables
+  // drawTblCompact: all y values are TOP of each element (no offset tricks)
+  // rH = row height. Returns y position AFTER the table.
   function drawTblCompact(ctx,yStart,ps,side,qf,teamColor){
     var all=ps.map(function(_,i){return Object.assign({i:i},calcPS(side,i,qf))});
-    // Filter: only players with any stats in this quarter
     var active=all.filter(function(s){return s.pts>0||s.fga>0||s.fta>0||s.reb>0||s.ast>0||s.stl>0||s.blk>0||s.to>0||s.pf>0||s.def>0});
     if(!active.length){
-      ctx.font='400 '+mm(2)+'px Inter,sans-serif';ctx.fillStyle=C.light;ctx.textAlign='left';
+      ctx.font='400 '+mm(2)+'px Inter,sans-serif';ctx.fillStyle=C.light;ctx.textAlign='left';ctx.textBaseline='middle';
       ctx.fillText('No stats recorded',mm(12),mm(yStart+2));
-      return yStart+4.5;
+      return yStart+4;
     }
     var tot=active.reduce(function(t,s){Object.keys(s).forEach(function(k){if(k!=='i')t[k]=(t[k]||0)+s[k]});return t},{});
-    // Same columns as full BOX SCORE
     var hdr=['','PTS','2P','2P%','3P','3P%','FG','FG%','FT','FT%','OR','DR','REB','AST','STL','BLK','TO','PF','EFF'];
     var cw=[22,8,11,9,11,9,11,9,11,9,6,6,8,8,8,8,6,6,8];
     var totalW=cw.reduce(function(a,b){return a+b},0);
     var mg=10,rH=2.5,y=yStart;
 
-    // Header row
-    ctx.fillStyle=C.dark;ctx.fillRect(mm(mg),mm(y-1),mm(totalW),mm(3));
+    // Header row: fill bg at y, text centered in rH
+    ctx.fillStyle=C.dark;ctx.fillRect(mm(mg),mm(y),mm(totalW),mm(rH));
     ctx.font='700 '+mm(1.8)+'px Inter,sans-serif';ctx.fillStyle='#ffffff';ctx.textBaseline='middle';
     var rx=mg;
-    hdr.forEach(function(h,i){ctx.textAlign=i===0?'left':'center';ctx.fillText(h,mm(i===0?rx+0.5:rx+cw[i]/2),mm(y+0.5));rx+=cw[i]});
-    y+=2.5;
+    hdr.forEach(function(h,i){ctx.textAlign=i===0?'left':'center';ctx.fillText(h,mm(i===0?rx+0.5:rx+cw[i]/2),mm(y+rH/2));rx+=cw[i]});
+    y+=rH;
 
     // Data rows
     ctx.font='400 '+mm(1.8)+'px Inter,sans-serif';ctx.textBaseline='middle';
     active.forEach(function(s,ri){
-      if(ri%2===0){ctx.fillStyle=C.stripe;ctx.fillRect(mm(mg),mm(y-0.5),mm(totalW),mm(rH))}
+      if(ri%2===0){ctx.fillStyle=C.stripe;ctx.fillRect(mm(mg),mm(y),mm(totalW),mm(rH))}
       ctx.fillStyle=C.black;
       var p=ps[s.i],eff=calcEff(s);
       var fgp=s.fga?Math.round(s.fgm/s.fga*100):0;
@@ -1785,14 +1784,13 @@ async function exportBoxPDF(){
         if(i===1&&s.pts>=10){ctx.fillStyle=teamColor;ctx.font='700 '+mm(1.8)+'px Inter,sans-serif'}
         else{ctx.fillStyle=C.black;ctx.font='400 '+mm(1.8)+'px Inter,sans-serif'}
         ctx.textAlign=i===0?'left':'center';
-        ctx.fillText(String(v),mm(i===0?rx+0.5:rx+cw[i]/2),mm(y+rH/2-0.3));
+        ctx.fillText(String(v),mm(i===0?rx+0.5:rx+cw[i]/2),mm(y+rH/2));
         rx+=cw[i];
       });
       y+=rH;
     });
 
-    // Total row
-    y+=0.2;
+    // Total row (no gap, directly after data)
     ctx.fillStyle=teamColor;ctx.fillRect(mm(mg),mm(y),mm(totalW),mm(rH));
     var teff=calcEff(tot);
     var tfgp=tot.fga?Math.round(tot.fgm/tot.fga*100):0;
@@ -1807,78 +1805,81 @@ async function exportBoxPDF(){
       ctx.fillText(String(v),mm(i===0?rx+0.5:rx+cw[i]/2),mm(y+rH/2));
       rx+=cw[i];
     });
-    return y+rH+1.5;
+    return y+rH;
   }
 
-  // Render quarter pages: fit as many quarters per page as possible
+  // Exact height calculator matching drawTblCompact
+  function tblCompactH(ps,side,qi){
+    var n=ps.filter(function(_,i){var s=calcPS(side,i,qi);return s.pts>0||s.fga>0||s.fta>0||s.reb>0||s.ast>0||s.stl>0||s.blk>0||s.to>0||s.pf>0||s.def>0}).length;
+    return n?(n+2)*2.5:4; // header(2.5) + n*2.5 + total(2.5) OR 4 for empty
+  }
+
+  // Render quarter pages
   var nQ=G.quarters;
   if(nQ>0){
     var qPage,qCtx,qY=0;
+    var QHDR=6, TLBL=3.5, TGAP=2, QGAP=4;
 
     function startQPage(){
       var r=mkPage();qPage=r.c;qCtx=r.x;
-      qCtx.textBaseline='alphabetic';
-      // Top bar
       qCtx.fillStyle=C.dark;qCtx.fillRect(0,0,PW,mm(2));
-      // Title
-      qCtx.textAlign='left';qCtx.font='700 '+mm(5)+'px Oswald,sans-serif';qCtx.fillStyle=C.dark;
-      qCtx.fillText('QUARTER STATS',mm(10),mm(9));
+      qCtx.textAlign='left';qCtx.textBaseline='middle';
+      qCtx.font='700 '+mm(5)+'px Oswald,sans-serif';qCtx.fillStyle=C.dark;
+      qCtx.fillText('QUARTER STATS',mm(10),mm(6));
       qCtx.font='400 '+mm(3)+'px Oswald,sans-serif';qCtx.fillStyle=C.light;
-      qCtx.fillText(myLabel+' vs '+oppLabel+'  |  '+myScore+' - '+oppScore,mm(10),mm(12.5));
-      // Date
+      qCtx.fillText(myLabel+' vs '+oppLabel+'  |  '+myScore+' - '+oppScore,mm(10),mm(11));
       qCtx.textAlign='right';qCtx.font='400 '+mm(3)+'px Inter,sans-serif';qCtx.fillStyle=C.light;
-      qCtx.fillText(G.date||'',mm(pw-10),mm(9));
+      qCtx.fillText(G.date||'',mm(pw-10),mm(6));
       drawLine(qCtx,10,14,pw-10,14,C.border,0.5);
-      qY=17;
+      qY=16;
     }
 
     function finishQPage(){
       if(!qPage)return;
       qCtx.fillStyle=C.dark;qCtx.fillRect(0,mm(ph-2),PW,mm(2));
       qCtx.font='400 '+mm(2)+'px Inter,sans-serif';qCtx.fillStyle='rgba(255,255,255,.5)';
-      qCtx.textAlign='center';qCtx.fillText('Generated by Stat IQ',mm(pw/2),mm(ph-0.5));
+      qCtx.textAlign='center';qCtx.textBaseline='middle';
+      qCtx.fillText('Generated by Stat IQ',mm(pw/2),mm(ph-1));
       addPage(qPage,false);
       qPage=null;
     }
 
     for(var qi=0;qi<nQ;qi++){
-      // Estimate space needed: header + MY team rows + OPP team rows
       var myPS=myTeam.players,oppPS=G.oppPlayers;
-      var myActive=myPS.filter(function(_,i){var s=calcPS('my',i,qi);return s.pts>0||s.fga>0||s.fta>0||s.reb>0||s.ast>0||s.stl>0||s.blk>0||s.to>0||s.pf>0||s.def>0}).length;
-      var oppActive=oppPS.filter(function(_,i){var s=calcPS('opp',i,qi);return s.pts>0||s.fga>0||s.fta>0||s.reb>0||s.ast>0||s.stl>0||s.blk>0||s.to>0||s.pf>0||s.def>0}).length;
-      // drawTblCompact returns: no stats→4.5, with stats→header(2.5)+rows(n*2.5)+total(0.2+2.5+1.5)=n*2.5+6.7
-      var myH=myActive?myActive*2.5+6.7:4.5;
-      var oppH=oppActive?oppActive*2.5+6.7:4.5;
-      // Q header(7) + myLabel(2) + myH + gap(1) + oppLabel(2) + oppH + gap(3)
-      var estH=7+2+myH+1+2+oppH+3;
+      var myH=tblCompactH(myPS,'my',qi);
+      var oppH=tblCompactH(oppPS,'opp',qi);
+      var estH=QHDR+TLBL+myH+TGAP+TLBL+oppH+QGAP;
 
-      // Check if we need a new page
-      if(!qPage||qY+estH>ph-8){
+      if(!qPage||qY+estH>ph-6){
         if(qPage)finishQPage();
         startQPage();
       }
 
-      // Quarter header with score
+      // Quarter header bar
       var qMyS=G.myQS[qi]||0, qOppS=G.oppQS[qi]||0;
-      qCtx.textAlign='left';
       roundRect(qCtx,10,qY,pw-20,5,1,C.dark);
+      qCtx.textAlign='left';qCtx.textBaseline='middle';
       qCtx.font='700 '+mm(3.5)+'px Oswald,sans-serif';qCtx.fillStyle='#ffffff';
-      qCtx.fillText('Q'+(qi+1),mm(14),mm(qY+3.5));
+      qCtx.fillText('Q'+(qi+1),mm(14),mm(qY+2.5));
       qCtx.font='600 '+mm(3)+'px Oswald,sans-serif';
-      qCtx.fillText(myLabel+' '+qMyS+' - '+qOppS+' '+oppLabel,mm(28),mm(qY+3.5));
-      qY+=7;
+      qCtx.fillText(myLabel+' '+qMyS+' - '+qOppS+' '+oppLabel,mm(28),mm(qY+2.5));
+      qY+=QHDR;
 
-      // MY team table
-      qCtx.font='600 '+mm(2.5)+'px Oswald,sans-serif';qCtx.fillStyle=C.accent;qCtx.textAlign='left';
-      qCtx.fillText(myLabel,mm(10),mm(qY));qY+=2;
+      // MY team label + table
+      qCtx.font='600 '+mm(2.5)+'px Oswald,sans-serif';qCtx.fillStyle=C.accent;
+      qCtx.textAlign='left';qCtx.textBaseline='middle';
+      qCtx.fillText(myLabel,mm(10),mm(qY+1.2));
+      qY+=TLBL;
       qY=drawTblCompact(qCtx,qY,myPS,'my',qi,C.accent);
-      qY+=1;
+      qY+=TGAP;
 
-      // OPP team table
-      qCtx.font='600 '+mm(2.5)+'px Oswald,sans-serif';qCtx.fillStyle=C.opp;qCtx.textAlign='left';
-      qCtx.fillText(oppLabel,mm(10),mm(qY));qY+=2;
+      // OPP team label + table
+      qCtx.font='600 '+mm(2.5)+'px Oswald,sans-serif';qCtx.fillStyle=C.opp;
+      qCtx.textAlign='left';qCtx.textBaseline='middle';
+      qCtx.fillText(oppLabel,mm(10),mm(qY+1.2));
+      qY+=TLBL;
       qY=drawTblCompact(qCtx,qY,oppPS,'opp',qi,C.opp);
-      qY+=3;
+      qY+=QGAP;
     }
     if(qPage)finishQPage();
   }
