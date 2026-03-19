@@ -12,10 +12,10 @@
 <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
-*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
 html,body{width:100%;height:100%;overflow:hidden;font-family:'Inter',sans-serif;background:#0b0f14;color:#e4e8ef}
 button{font-family:inherit;cursor:pointer;border:none;outline:none;background:none;color:inherit}
-input,select{font-family:inherit;outline:none}
+input,select{font-family:inherit;outline:none;-webkit-user-select:text;user-select:text}
 :root{
   --bg:#0b0f14;--bg2:#12171e;--bg3:#1a2029;--bgc:#151b24;
   --brd:#242d3a;--brd2:#3a4555;--t1:#e4e8ef;--t2:#8a95a8;--t3:#556070;
@@ -956,15 +956,17 @@ function nextQ(){if(!G||G.cq>=G.quarters-1)return;G.cq++;save();updateQUI()}
 function rotateCourt(side){courtRotation[side]=(courtRotation[side]+90)%360;drawCourt(side)}
 function updateQUI(){if(!G)return;const l='Q'+(G.cq+1);document.getElementById('sb-qn').textContent=l;document.getElementById('tb-q').textContent=l}
 
-// Sort on-court players by number (ascending) — mutates oc in place and returns it
+// Sort on-court players by number (ascending) — mutates oc in place
 function sortOC(side){
   if(!G)return;
-  const oc=side==='my'?G.myOC:G.oppOC;
-  const ps=side==='my'?(G.myPlayers||myTeam.players):G.oppPlayers;
+  var oc=side==='my'?G.myOC:G.oppOC;
+  var ps=side==='my'?myTeam.players:G.oppPlayers;
   oc.sort(function(a,b){
-    var na=parseInt(ps[a]&&ps[a].number)||999;
-    var nb=parseInt(ps[b]&&ps[b].number)||999;
-    return na-nb;
+    var numA=ps[a]?parseInt(ps[a].number,10):999;
+    var numB=ps[b]?parseInt(ps[b].number,10):999;
+    if(isNaN(numA))numA=999;
+    if(isNaN(numB))numB=999;
+    return numA-numB;
   });
 }
 
@@ -974,23 +976,37 @@ function renderPC(side){
   const col=document.getElementById(side+'-pcol');col.innerHTML='';
   const ps=side==='my'?myTeam.players:G.oppPlayers;
   const oc=side==='my'?G.myOC:G.oppOC;
-  // Sort on-court by number — create sorted copy for rendering
-  const ocSorted=oc.slice().sort(function(a,b){
-    var na=parseInt(ps[a]&&ps[a].number)||999;
-    var nb=parseInt(ps[b]&&ps[b].number)||999;
-    return na-nb;
+
+  // Build sorted on-court list by jersey number
+  var onCourtSorted=[];
+  for(var i=0;i<oc.length;i++){onCourtSorted.push(oc[i])}
+  onCourtSorted.sort(function(a,b){
+    var numA=0,numB=0;
+    if(ps[a]){numA=parseInt(ps[a].number,10);if(isNaN(numA))numA=999}else{numA=999}
+    if(ps[b]){numB=parseInt(ps[b].number,10);if(isNaN(numB))numB=999}else{numB=999}
+    return numA-numB;
   });
-  // Also update the actual OC array to match
-  oc.length=0; ocSorted.forEach(function(v){oc.push(v)});
 
   const lbl1=document.createElement('div');lbl1.className='clbl';lbl1.textContent='ON COURT';col.appendChild(lbl1);
-  oc.forEach(idx=>{const p=ps[idx];if(p)col.appendChild(mkPB(p,idx,side,true))});
+  for(var j=0;j<onCourtSorted.length;j++){
+    var idx=onCourtSorted[j];
+    var p=ps[idx];
+    if(p)col.appendChild(mkPB(p,idx,side,true));
+  }
   const lbl2=document.createElement('div');lbl2.className='clbl';lbl2.style.marginTop='6px';lbl2.textContent='BENCH';col.appendChild(lbl2);
-  // Sort bench by number too
-  const benchIdxs=[];
-  ps.forEach((p,idx)=>{if(!oc.includes(idx))benchIdxs.push(idx)});
-  benchIdxs.sort((a,b)=>{const na=parseInt(ps[a]&&ps[a].number)||999,nb=parseInt(ps[b]&&ps[b].number)||999;return na-nb});
-  benchIdxs.forEach(idx=>col.appendChild(mkPB(ps[idx],idx,side,false)));
+  // Build sorted bench list
+  var benchSorted=[];
+  for(var k=0;k<ps.length;k++){if(oc.indexOf(k)<0)benchSorted.push(k)}
+  benchSorted.sort(function(a,b){
+    var numA=0,numB=0;
+    if(ps[a]){numA=parseInt(ps[a].number,10);if(isNaN(numA))numA=999}else{numA=999}
+    if(ps[b]){numB=parseInt(ps[b].number,10);if(isNaN(numB))numB=999}else{numB=999}
+    return numA-numB;
+  });
+  for(var m=0;m<benchSorted.length;m++){
+    var bi=benchSorted[m];
+    col.appendChild(mkPB(ps[bi],bi,side,false));
+  }
 }
 function mkPB(p,idx,side,onCourt){
   const b=document.createElement('button');
