@@ -926,7 +926,7 @@ function commitPendingAction(pid){
     if(a.pts>0)(a.side==='my'?G.myQS:G.oppQS)[G.cq]+=a.pts;
   }
   pendingAction=null;selId=null;
-  save();drawCourt('my');drawCourt('opp');updateAll();
+  save();drawCourt('my');drawCourt('opp');renderPlayers();updateAll();
 }
 
 function selAndStat(side,type,pts){
@@ -1846,7 +1846,11 @@ async function exportBoxPDF(){
       var myPS=myTeam.players,oppPS=G.oppPlayers;
       var myActive=myPS.filter(function(_,i){var s=calcPS('my',i,qi);return s.pts>0||s.fga>0||s.fta>0||s.reb>0||s.ast>0||s.stl>0||s.blk>0||s.to>0||s.pf>0||s.def>0}).length;
       var oppActive=oppPS.filter(function(_,i){var s=calcPS('opp',i,qi);return s.pts>0||s.fga>0||s.fta>0||s.reb>0||s.ast>0||s.stl>0||s.blk>0||s.to>0||s.pf>0||s.def>0}).length;
-      var estH=8+(Math.max(myActive,1)+2)*2.6+3+(Math.max(oppActive,1)+2)*2.6+6;
+      // drawTblCompact returns: no stats→4.5, with stats→header(2.5)+rows(n*2.5)+total(0.2+2.5+1.5)=n*2.5+6.7
+      var myH=myActive?myActive*2.5+6.7:4.5;
+      var oppH=oppActive?oppActive*2.5+6.7:4.5;
+      // Q header(7) + myLabel(2) + myH + gap(1) + oppLabel(2) + oppH + gap(3)
+      var estH=7+2+myH+1+2+oppH+3;
 
       // Check if we need a new page
       if(!qPage||qY+estH>ph-8){
