@@ -887,6 +887,8 @@ function getDisplayZone(mx,my){return getZone(mx,my)}
     cpy=dx*Math.sin(rad)+dy*Math.cos(rad)+d.drawH/2;
   }
   let mx=(cpx-d.oX)/d.px,my=14-(cpy-d.oY)/d.px;
+  // Only register shot if tap is within the court area (0-15 x 0-14)
+  if(mx<-0.3||mx>15.3||my<-0.3||my>14.3)return;
   mx=Math.max(0,Math.min(15,mx));my=Math.max(0,Math.min(14,my));
   pending[side]={x:mx,y:my,zone:getZone(mx,my),is3:is3pt(mx,my)};
   const pop=document.getElementById('sp-'+side);
@@ -898,6 +900,20 @@ function getDisplayZone(mx,my){return getZone(mx,my)}
   if(px2<0)px2=6;
   pop.style.left=px2+'px';pop.style.top=py2+'px';pop.classList.add('on');
 })});
+
+// Close shot popup when tapping anywhere outside it
+document.addEventListener('click',function(e){
+  ['my','opp'].forEach(function(side){
+    var pop=document.getElementById('sp-'+side);
+    if(!pop||!pop.classList.contains('on'))return;
+    // If click is inside the popup itself, ignore
+    if(pop.contains(e.target))return;
+    // If click is on the court canvas, ignore (court handler manages it)
+    if(e.target.id==='cv-my'||e.target.id==='cv-opp')return;
+    // Otherwise close
+    canShot(side);
+  });
+});
 
 function recShot(side,made){
   const p=pending[side];if(!p)return;
@@ -2178,7 +2194,7 @@ onAuthStateChanged(auth,async user=>{
 
 <script>
 // App version — change this to force cache refresh
-var APP_VERSION='2026031903';
+var APP_VERSION='2026031904';
 if('serviceWorker' in navigator){
   // Check version change first
   var lastVer=localStorage.getItem('siq_ver');
