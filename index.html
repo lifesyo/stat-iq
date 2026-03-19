@@ -87,11 +87,10 @@ input,select{font-family:inherit;outline:none}
 .pbtn:hover{border-color:var(--brd2);background:var(--bg3)}.pbtn.sel{border-color:var(--acc);background:var(--accbg);box-shadow:inset 0 0 0 1px rgba(0,201,120,.15)}.pbtn.osel{border-color:var(--opp);background:var(--oppbg)}
 .dot{width:5px;height:5px;border-radius:50%;flex-shrink:0}.dot.on{background:var(--acc);box-shadow:0 0 4px var(--acc)}.dot.off{background:var(--t3)}.dot.oon{background:var(--opp);box-shadow:0 0 4px var(--opp)}
 .pn{font-family:var(--fd);font-size:16px;font-weight:700;min-width:26px}.pnm{font-size:10px;font-weight:500;color:var(--t2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.pbtn.dragging{opacity:.4;border-style:dashed}
+.pbtn.dragging{opacity:.5;border-color:var(--brd2)}
 .pbtn.drop-target{border-color:var(--acc);background:var(--accbg);box-shadow:0 0 12px rgba(0,201,120,.25)}
 .pbtn.drop-target-opp{border-color:var(--opp);background:var(--oppbg);box-shadow:0 0 12px rgba(240,112,64,.25)}
-.drag-ghost{position:fixed;pointer-events:none;z-index:200;padding:8px 8px;border-radius:8px;background:var(--bg2);border:2px solid var(--acc);display:flex;align-items:center;gap:6px;min-height:36px;opacity:.92;box-shadow:var(--sh);font-family:inherit;color:var(--t1)}
-.drag-ghost.opp-g{border-color:var(--opp)}
+
 
 /* Stats cols — large tap targets */
 .scol{width:142px;padding:5px;display:flex;flex-direction:column;gap:3px;overflow-y:auto;flex-shrink:0;background:var(--bg)}
@@ -957,12 +956,14 @@ function nextQ(){if(!G||G.cq>=G.quarters-1)return;G.cq++;save();updateQUI()}
 function rotateCourt(side){courtRotation[side]=(courtRotation[side]+90)%360;drawCourt(side)}
 function updateQUI(){if(!G)return;const l='Q'+(G.cq+1);document.getElementById('sb-qn').textContent=l;document.getElementById('tb-q').textContent=l}
 
-// Sort on-court players by number (ascending)
+// Sort on-court players by number (ascending) — mutates oc in place and returns it
 function sortOC(side){
+  if(!G)return;
   const oc=side==='my'?G.myOC:G.oppOC;
-  const ps=side==='my'?myTeam.players:G.oppPlayers;
-  oc.sort((a,b)=>{
-    const na=parseInt(ps[a]?.number)||999, nb=parseInt(ps[b]?.number)||999;
+  const ps=side==='my'?(G.myPlayers||myTeam.players):G.oppPlayers;
+  oc.sort(function(a,b){
+    var na=parseInt(ps[a]&&ps[a].number)||999;
+    var nb=parseInt(ps[b]&&ps[b].number)||999;
     return na-nb;
   });
 }
@@ -971,16 +972,24 @@ function sortOC(side){
 function renderPlayers(){if(!G)return;renderPC('my');renderPC('opp')}
 function renderPC(side){
   const col=document.getElementById(side+'-pcol');col.innerHTML='';
-  const ps=side==='my'?myTeam.players:G.oppPlayers,oc=side==='my'?G.myOC:G.oppOC;
-  // Sort on-court by number
-  sortOC(side);
+  const ps=side==='my'?myTeam.players:G.oppPlayers;
+  const oc=side==='my'?G.myOC:G.oppOC;
+  // Sort on-court by number — create sorted copy for rendering
+  const ocSorted=oc.slice().sort(function(a,b){
+    var na=parseInt(ps[a]&&ps[a].number)||999;
+    var nb=parseInt(ps[b]&&ps[b].number)||999;
+    return na-nb;
+  });
+  // Also update the actual OC array to match
+  oc.length=0; ocSorted.forEach(function(v){oc.push(v)});
+
   const lbl1=document.createElement('div');lbl1.className='clbl';lbl1.textContent='ON COURT';col.appendChild(lbl1);
   oc.forEach(idx=>{const p=ps[idx];if(p)col.appendChild(mkPB(p,idx,side,true))});
   const lbl2=document.createElement('div');lbl2.className='clbl';lbl2.style.marginTop='6px';lbl2.textContent='BENCH';col.appendChild(lbl2);
   // Sort bench by number too
   const benchIdxs=[];
   ps.forEach((p,idx)=>{if(!oc.includes(idx))benchIdxs.push(idx)});
-  benchIdxs.sort((a,b)=>{const na=parseInt(ps[a]?.number)||999,nb=parseInt(ps[b]?.number)||999;return na-nb});
+  benchIdxs.sort((a,b)=>{const na=parseInt(ps[a]&&ps[a].number)||999,nb=parseInt(ps[b]&&ps[b].number)||999;return na-nb});
   benchIdxs.forEach(idx=>col.appendChild(mkPB(ps[idx],idx,side,false)));
 }
 function mkPB(p,idx,side,onCourt){
@@ -1004,17 +1013,13 @@ function mkPB(p,idx,side,onCourt){
   });
   // Long-press drag start
   b.addEventListener('pointerdown',e=>{if(e.button!==0)return;_drd.startX=e.clientX;_drd.startY=e.clientY;_drd.srcSide=side;_drd.srcIdx=idx;_drd.srcOnCourt=onCourt;_drd.srcEl=b;_drd.didDrag=false;
-    _drd.timer=setTimeout(()=>{_drd.active=true;_drd.didDrag=true;b.classList.add('dragging');
-      const gh=document.createElement('div');gh.className='drag-ghost'+(side==='opp'?' opp-g':'');
-      gh.innerHTML=`<span class="pn">#${p.number}</span><span class="pnm">${p.name}</span>`;
-      gh.style.left=(e.clientX-50)+'px';gh.style.top=(e.clientY-20)+'px';document.body.appendChild(gh);_drd.ghost=gh;
-    },150);
+    _drd.timer=setTimeout(()=>{_drd.active=true;_drd.didDrag=true;b.classList.add('dragging');},150);
   });
   return b;
 }
 
 // Drag-and-drop substitution state
-const _drd={active:false,timer:null,ghost:null,srcSide:null,srcIdx:null,srcOnCourt:false,srcEl:null,startX:0,startY:0,didDrag:false,lastTarget:null};
+const _drd={active:false,timer:null,srcSide:null,srcIdx:null,srcOnCourt:false,srcEl:null,startX:0,startY:0,didDrag:false,lastTarget:null};
 
 document.addEventListener('pointermove',e=>{
   if(_drd.timer&&!_drd.active){
@@ -1023,7 +1028,6 @@ document.addEventListener('pointermove',e=>{
   }
   if(!_drd.active)return;
   e.preventDefault();
-  if(_drd.ghost){_drd.ghost.style.left=(e.clientX-50)+'px';_drd.ghost.style.top=(e.clientY-20)+'px'}
   // Highlight drop target
   const el=document.elementFromPoint(e.clientX,e.clientY);
   const tgt=el?el.closest('.pbtn'):null;
@@ -1037,7 +1041,6 @@ document.addEventListener('pointerup',e=>{
   clearTimeout(_drd.timer);_drd.timer=null;
   if(!_drd.active){_drd.active=false;return}
   _drd.active=false;
-  if(_drd.ghost){_drd.ghost.remove();_drd.ghost=null}
   if(_drd.srcEl)_drd.srcEl.classList.remove('dragging');
   if(_drd.lastTarget){_drd.lastTarget.classList.remove('drop-target','drop-target-opp');
     // Execute substitution
