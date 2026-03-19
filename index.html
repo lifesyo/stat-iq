@@ -1955,12 +1955,12 @@ const app=initializeApp(firebaseConfig);
 const auth=getAuth(app);
 const db=getFirestore(app);
 
-let _fbUser=null,_unsub=null,_saving=false,_snapshotReady=false;
+let _fbUser=null,_unsub=null,_saving=false,_snapshotReady=false,_merging=false;
 
-// Auth persistence (same as Draw IQ)
+// Auth persistence
 setPersistence(auth,browserLocalPersistence).catch(e=>console.warn('Auth persistence:',e));
 
-// Firestore offline cache (same as Draw IQ)
+// Firestore offline cache
 try{
   const{enableIndexedDbPersistence:_enIdb}=await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
   if(_enIdb)_enIdb(db).catch(()=>{});
@@ -1975,7 +1975,6 @@ function renderAuthBar(){
   }
 }
 
-// Sign-in/out (same as Draw IQ: simple signInWithPopup)
 window._siqSignIn=()=>signInWithPopup(auth,new GoogleAuthProvider());
 window._siqSignOut=async()=>{
   if(!confirm('ログアウトしますか？'))return;
@@ -1983,32 +1982,23 @@ window._siqSignOut=async()=>{
   await fbSignOut(auth);_fbUser=null;_snapshotReady=false;renderAuthBar();
 };
 
-// Render login button immediately
 renderAuthBar();
 
-// Firestore data doc path
 function fbDocRef(){return doc(db,'statiq_data',_fbUser.uid)}
 
 // === MERGE HELPERS ===
-// Merge games arrays by ID — local wins on conflict, union otherwise
 function mergeGames(local,remote){
   const map=new Map();
-  // Start with remote
   (remote||[]).forEach(g=>{if(g&&g.id)map.set(g.id,g)});
-  // Local overrides remote for same ID; adds new entries
   (local||[]).forEach(g=>{if(g&&g.id)map.set(g.id,g)});
   return Array.from(map.values());
 }
-
-// Merge oppTeams by name — local wins on conflict
 function mergeOppTeams(local,remote){
   const map=new Map();
   (remote||[]).forEach(t=>{if(t&&t.name)map.set(t.name,t)});
   (local||[]).forEach(t=>{if(t&&t.name)map.set(t.name,t)});
   return Array.from(map.values());
 }
-
-// Merge myTeams by ID — local wins on conflict
 function mergeMyTeams(local,remote){
   const map=new Map();
   (remote||[]).forEach(t=>{if(t&&t.id)map.set(t.id,t)});
@@ -2016,7 +2006,6 @@ function mergeMyTeams(local,remote){
   return Array.from(map.values());
 }
 
-// Build a snapshot of all local data
 function localSnapshot(){
   return{
     myTeam:JSON.parse(JSON.stringify(window.myTeam)),
@@ -2034,88 +2023,55 @@ let _fbSaveTimer=null;
 const _origSave=window.save;
 window.save=function(){
   _origSave();
-  if(!_fbUser){return;}
+  // Skip Firestore push if we're in a merge operation or no user
+  if(!_fbUser||_merging)return;
+  // Mark saving immediately to block onSnapshot during debounce window
+  _saving=true;
   clearTimeout(_fbSaveTimer);
   _fbSaveTimer=setTimeout(async()=>{
-    _saving=true;
     try{
-      await setDoc(fbDocRef(),localSnapshot(),{merge:true});
+      const data=localSnapshot();
+      await setDoc(fbDocRef(),data,{merge:true});
       console.log('[Stat IQ] Firestore save OK');
     }catch(e){console.error('Firestore save error',e)}
     _saving=false;
-  },800);
+  },1200);
 };
 
-// === LOAD FROM FIRESTORE — merge-based ===
+// === LOAD FROM FIRESTORE ===
 async function fbLoad(){
   if(!_fbUser)return;
   try{
     const snap=await getDoc(fbDocRef());
-    const localTs=window._localUpdatedAt||0;
     if(snap.exists()){
       const d=snap.data();
-      const remoteTs=d.updatedAt||0;
-      if(localTs>remoteTs){
-        // Local is newer (offline edits) — merge then push
-        console.log('[Stat IQ] Local newer, merging and pushing',localTs,'>',remoteTs);
-        mergeRemoteInto(d);
-        await fbPush();
-      }else if(remoteTs>localTs){
-        // Remote is newer — merge remote into local
-        console.log('[Stat IQ] Remote newer, merging',remoteTs,'>',localTs);
-        mergeRemoteInto(d);
-      }else{
-        // Equal timestamps — still merge to be safe (union of games)
-        console.log('[Stat IQ] Timestamps equal, merging');
-        mergeRemoteInto(d);
-      }
+      mergeRemoteInto(d);
+      // After merge, push to ensure Firestore has the merged result
+      await fbPush();
     }else{
-      // No remote data — push local
-      console.log('[Stat IQ] No remote data, pushing local');
       await fbPush();
     }
   }catch(e){console.error('Firestore load error',e)}
 }
 
-// Merge remote data into local (instead of overwriting)
+// Merge remote data into local — never overwrites active game
 function mergeRemoteInto(d){
-  // For myTeam: keep whichever was edited more recently (use local if offline edits)
-  // Simple: keep local myTeam if it has players, otherwise take remote
-  if(d.myTeam&&(!window.myTeam.players||!window.myTeam.players.length)){
-    window.myTeam=d.myTeam;
+  _merging=true;
+  try{
+    if(d.myTeam&&(!window.myTeam.players||!window.myTeam.players.length)){
+      window.myTeam=d.myTeam;
+    }
+    if(d.myTeams) window.myTeams=mergeMyTeams(window.myTeams,d.myTeams);
+    if(d.games) window.games=mergeGames(window.games,d.games);
+    if(d.oppTeams) window.oppTeams=mergeOppTeams(window.oppTeams,d.oppTeams);
+    // NEVER touch currentGame if local has an active game
+    if(!window.G&&d.currentGame) window.G=d.currentGame;
+    window._localUpdatedAt=Math.max(d.updatedAt||0,window._localUpdatedAt||0);
+    migrateZones();
+    _origSave(); // save to localStorage only, not Firestore (because _merging=true)
+  }finally{
+    _merging=false;
   }
-
-  // Merge myTeams by ID
-  if(d.myTeams){
-    window.myTeams=mergeMyTeams(window.myTeams,d.myTeams);
-  }
-
-  // activeTeamIdx: keep local
-  // (it's a UI preference, doesn't cause data loss)
-
-  // Merge games by ID — this is the critical one for data loss prevention
-  if(d.games){
-    window.games=mergeGames(window.games,d.games);
-  }
-
-  // Merge oppTeams by name
-  if(d.oppTeams){
-    window.oppTeams=mergeOppTeams(window.oppTeams,d.oppTeams);
-  }
-
-  // currentGame: keep local if exists (it's an active session)
-  if(!window.G&&d.currentGame){
-    window.G=d.currentGame;
-  }
-
-  window._localUpdatedAt=Math.max(d.updatedAt||0, window._localUpdatedAt||0);
-  migrateZones();
-  _origSave();
-}
-
-// Apply remote data fully (used only when we know remote is authoritative — e.g. no local changes)
-function applyRemote(d){
-  mergeRemoteInto(d);
 }
 
 async function fbPush(){
@@ -2133,54 +2089,63 @@ async function fbPush(){
   _saving=false;
 }
 
-// Real-time sync listener — skip initial snapshot, merge on updates
+// Real-time sync — skip initial, block during saves, never overwrite active game
 function startSync(){
   if(_unsub)_unsub();
   _snapshotReady=false;
   _unsub=onSnapshot(fbDocRef(),snap=>{
     if(!_snapshotReady){
-      // Skip the initial snapshot (we already handled it in fbLoad)
       _snapshotReady=true;
-      console.log('[Stat IQ] onSnapshot: skipping initial');
       return;
     }
-    if(!snap.exists()||_saving)return;
+    if(!snap.exists()||_saving||_merging)return;
     const d=snap.data();
     const remoteTs=d.updatedAt||0;
     const localTs=window._localUpdatedAt||0;
-    if(localTs>remoteTs){
-      console.log('[Stat IQ] onSnapshot: local newer, skipping');
-      return;
+    // Only merge if remote is strictly newer
+    if(remoteTs<=localTs)return;
+    // If user is actively playing a game, only merge background data (games list, etc.)
+    // Do NOT touch G or trigger UI refresh that causes whiteout
+    const gameActive=window.G&&document.getElementById('game').classList.contains('active');
+    _merging=true;
+    try{
+      if(d.myTeams) window.myTeams=mergeMyTeams(window.myTeams,d.myTeams);
+      if(d.games) window.games=mergeGames(window.games,d.games);
+      if(d.oppTeams) window.oppTeams=mergeOppTeams(window.oppTeams,d.oppTeams);
+      if(!gameActive){
+        if(d.myTeam&&(!window.myTeam.players||!window.myTeam.players.length)) window.myTeam=d.myTeam;
+        if(!window.G&&d.currentGame) window.G=d.currentGame;
+      }
+      window._localUpdatedAt=Math.max(remoteTs,localTs);
+      _origSave();
+    }finally{
+      _merging=false;
     }
-    console.log('[Stat IQ] onSnapshot: merging remote update');
-    mergeRemoteInto(d);
-    if(window.G&&document.getElementById('game').classList.contains('active')){
-      window.renderPlayers();window.updateAll();window.drawCourt('my');window.drawCourt('opp');
+    // Only refresh UI if NOT on active game screen
+    if(!gameActive&&window.G){
+      window.renderPlayers();window.updateAll();
+      try{window.drawCourt('my');window.drawCourt('opp')}catch(e){}
     }
   });
 }
 
-// Flush pending local changes when coming back online — merge first
+// Online reconnect — fetch remote, merge, push
 window.addEventListener('online',async()=>{
   if(!_fbUser)return;
   console.log('[Stat IQ] Back online, syncing...');
   try{
-    // Fetch remote first, merge, then push merged result
     const snap=await getDoc(fbDocRef());
-    if(snap.exists()){
-      mergeRemoteInto(snap.data());
-    }
+    if(snap.exists()) mergeRemoteInto(snap.data());
     await fbPush();
-    console.log('[Stat IQ] Online sync complete');
   }catch(e){
-    console.error('[Stat IQ] Online sync error, falling back to push',e);
-    fbPush();
+    console.error('[Stat IQ] Online sync error',e);
+    try{await fbPush()}catch(e2){}
   }
 });
 
 onAuthStateChanged(auth,async user=>{
   _fbUser=user;
-  window._fbUser=user; // expose for debugging
+  window._fbUser=user;
   _snapshotReady=false;
   renderAuthBar();
   if(user){
