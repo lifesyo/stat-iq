@@ -972,45 +972,55 @@ function sortOC(side){
 
 // Players
 function renderPlayers(){if(!G)return;renderPC('my');renderPC('opp')}
-function getPlayerNum(ps,idx){
-  if(!ps||!ps[idx])return 999;
-  var n=ps[idx].number;
-  if(typeof n==='number')return n;
-  var parsed=parseInt(String(n).replace(/[^0-9]/g,''),10);
-  return isNaN(parsed)?999:parsed;
-}
 function renderPC(side){
   var col=document.getElementById(side+'-pcol');col.innerHTML='';
   var ps=side==='my'?myTeam.players:G.oppPlayers;
   var oc=side==='my'?G.myOC:G.oppOC;
 
-  // Ensure oc contains numbers
-  var ocNums=[];
-  for(var i=0;i<oc.length;i++){
-    var v=typeof oc[i]==='number'?oc[i]:parseInt(oc[i],10);
-    if(!isNaN(v))ocNums.push(v);
+  // Copy OC indices into a plain new array
+  var sorted=[];
+  var i,j,tmp;
+  for(i=0;i<oc.length;i++){sorted[i]=Number(oc[i])}
+
+  // Bubble sort by jersey number (simplest possible, no edge cases)
+  for(i=0;i<sorted.length-1;i++){
+    for(j=0;j<sorted.length-1-i;j++){
+      var nA=999,nB=999;
+      if(ps[sorted[j]])nA=Number(String(ps[sorted[j]].number).replace(/\D/g,''))||999;
+      if(ps[sorted[j+1]])nB=Number(String(ps[sorted[j+1]].number).replace(/\D/g,''))||999;
+      if(nA>nB){tmp=sorted[j];sorted[j]=sorted[j+1];sorted[j+1]=tmp}
+    }
   }
 
-  // Sort by jersey number
-  ocNums.sort(function(a,b){return getPlayerNum(ps,a)-getPlayerNum(ps,b)});
+  var lbl1=document.createElement('div');lbl1.className='clbl';
+  lbl1.textContent='ON COURT';
+  col.appendChild(lbl1);
+  for(i=0;i<sorted.length;i++){
+    if(ps[sorted[i]])col.appendChild(mkPB(ps[sorted[i]],sorted[i],side,true));
+  }
 
-  var lbl1=document.createElement('div');lbl1.className='clbl';lbl1.textContent='ON COURT';col.appendChild(lbl1);
-  for(var j=0;j<ocNums.length;j++){
-    var idx=ocNums[j];
-    var p=ps[idx];
-    if(p)col.appendChild(mkPB(p,idx,side,true));
+  // Bench: players NOT in oc
+  var bench=[];
+  for(i=0;i<ps.length;i++){
+    var isOnCourt=false;
+    for(j=0;j<oc.length;j++){if(Number(oc[j])===i){isOnCourt=true;break}}
+    if(!isOnCourt)bench.push(i);
   }
-  var lbl2=document.createElement('div');lbl2.className='clbl';lbl2.style.marginTop='6px';lbl2.textContent='BENCH';col.appendChild(lbl2);
-  // Bench: all players not on court, sorted by number
-  var benchList=[];
-  for(var k=0;k<ps.length;k++){
-    var found=false;
-    for(var q=0;q<oc.length;q++){if(parseInt(oc[q],10)===k){found=true;break}}
-    if(!found)benchList.push(k);
+  // Bubble sort bench too
+  for(i=0;i<bench.length-1;i++){
+    for(j=0;j<bench.length-1-i;j++){
+      var bA=999,bB=999;
+      if(ps[bench[j]])bA=Number(String(ps[bench[j]].number).replace(/\D/g,''))||999;
+      if(ps[bench[j+1]])bB=Number(String(ps[bench[j+1]].number).replace(/\D/g,''))||999;
+      if(bA>bB){tmp=bench[j];bench[j]=bench[j+1];bench[j+1]=tmp}
+    }
   }
-  benchList.sort(function(a,b){return getPlayerNum(ps,a)-getPlayerNum(ps,b)});
-  for(var m=0;m<benchList.length;m++){
-    col.appendChild(mkPB(ps[benchList[m]],benchList[m],side,false));
+
+  var lbl2=document.createElement('div');lbl2.className='clbl';lbl2.style.marginTop='6px';
+  lbl2.textContent='BENCH';
+  col.appendChild(lbl2);
+  for(i=0;i<bench.length;i++){
+    if(ps[bench[i]])col.appendChild(mkPB(ps[bench[i]],bench[i],side,false));
   }
 }
 function mkPB(p,idx,side,onCourt){
@@ -2168,7 +2178,7 @@ onAuthStateChanged(auth,async user=>{
 
 <script>
 // App version — change this to force cache refresh
-var APP_VERSION='2026031902';
+var APP_VERSION='2026031903';
 if('serviceWorker' in navigator){
   // Check version change first
   var lastVer=localStorage.getItem('siq_ver');
