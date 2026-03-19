@@ -972,40 +972,45 @@ function sortOC(side){
 
 // Players
 function renderPlayers(){if(!G)return;renderPC('my');renderPC('opp')}
+function getPlayerNum(ps,idx){
+  if(!ps||!ps[idx])return 999;
+  var n=ps[idx].number;
+  if(typeof n==='number')return n;
+  var parsed=parseInt(String(n).replace(/[^0-9]/g,''),10);
+  return isNaN(parsed)?999:parsed;
+}
 function renderPC(side){
-  const col=document.getElementById(side+'-pcol');col.innerHTML='';
-  const ps=side==='my'?myTeam.players:G.oppPlayers;
-  const oc=side==='my'?G.myOC:G.oppOC;
+  var col=document.getElementById(side+'-pcol');col.innerHTML='';
+  var ps=side==='my'?myTeam.players:G.oppPlayers;
+  var oc=side==='my'?G.myOC:G.oppOC;
 
-  // Build sorted on-court list by jersey number
-  var onCourtSorted=[];
-  for(var i=0;i<oc.length;i++){onCourtSorted.push(oc[i])}
-  onCourtSorted.sort(function(a,b){
-    var numA=0,numB=0;
-    if(ps[a]){numA=parseInt(ps[a].number,10);if(isNaN(numA))numA=999}else{numA=999}
-    if(ps[b]){numB=parseInt(ps[b].number,10);if(isNaN(numB))numB=999}else{numB=999}
-    return numA-numB;
-  });
+  // Ensure oc contains numbers
+  var ocNums=[];
+  for(var i=0;i<oc.length;i++){
+    var v=typeof oc[i]==='number'?oc[i]:parseInt(oc[i],10);
+    if(!isNaN(v))ocNums.push(v);
+  }
 
-  const lbl1=document.createElement('div');lbl1.className='clbl';lbl1.textContent='ON COURT';col.appendChild(lbl1);
-  for(var j=0;j<onCourtSorted.length;j++){
-    var idx=onCourtSorted[j];
+  // Sort by jersey number
+  ocNums.sort(function(a,b){return getPlayerNum(ps,a)-getPlayerNum(ps,b)});
+
+  var lbl1=document.createElement('div');lbl1.className='clbl';lbl1.textContent='ON COURT';col.appendChild(lbl1);
+  for(var j=0;j<ocNums.length;j++){
+    var idx=ocNums[j];
     var p=ps[idx];
     if(p)col.appendChild(mkPB(p,idx,side,true));
   }
-  const lbl2=document.createElement('div');lbl2.className='clbl';lbl2.style.marginTop='6px';lbl2.textContent='BENCH';col.appendChild(lbl2);
-  // Build sorted bench list
-  var benchSorted=[];
-  for(var k=0;k<ps.length;k++){if(oc.indexOf(k)<0)benchSorted.push(k)}
-  benchSorted.sort(function(a,b){
-    var numA=0,numB=0;
-    if(ps[a]){numA=parseInt(ps[a].number,10);if(isNaN(numA))numA=999}else{numA=999}
-    if(ps[b]){numB=parseInt(ps[b].number,10);if(isNaN(numB))numB=999}else{numB=999}
-    return numA-numB;
-  });
-  for(var m=0;m<benchSorted.length;m++){
-    var bi=benchSorted[m];
-    col.appendChild(mkPB(ps[bi],bi,side,false));
+  var lbl2=document.createElement('div');lbl2.className='clbl';lbl2.style.marginTop='6px';lbl2.textContent='BENCH';col.appendChild(lbl2);
+  // Bench: all players not on court, sorted by number
+  var benchList=[];
+  for(var k=0;k<ps.length;k++){
+    var found=false;
+    for(var q=0;q<oc.length;q++){if(parseInt(oc[q],10)===k){found=true;break}}
+    if(!found)benchList.push(k);
+  }
+  benchList.sort(function(a,b){return getPlayerNum(ps,a)-getPlayerNum(ps,b)});
+  for(var m=0;m<benchList.length;m++){
+    col.appendChild(mkPB(ps[benchList[m]],benchList[m],side,false));
   }
 }
 function mkPB(p,idx,side,onCourt){
@@ -2163,21 +2168,28 @@ onAuthStateChanged(auth,async user=>{
 
 <script>
 // App version — change this to force cache refresh
-var APP_VERSION='2026031901';
+var APP_VERSION='2026031902';
 if('serviceWorker' in navigator){
-  navigator.serviceWorker.register('sw.js').then(function(reg){
-    // Force update check
-    reg.update().catch(function(){});
-  }).catch(function(){});
-  // Clear old caches on version change
+  // Check version change first
   var lastVer=localStorage.getItem('siq_ver');
-  if(lastVer!==APP_VERSION&&'caches' in window){
-    caches.keys().then(function(names){
-      names.forEach(function(name){caches.delete(name)});
-    }).then(function(){
-      localStorage.setItem('siq_ver',APP_VERSION);
-      if(lastVer)location.reload();
+  if(lastVer!==APP_VERSION){
+    // Unregister all service workers
+    navigator.serviceWorker.getRegistrations().then(function(regs){
+      regs.forEach(function(r){r.unregister()});
     });
+    // Clear all caches
+    if('caches' in window){
+      caches.keys().then(function(names){
+        return Promise.all(names.map(function(name){return caches.delete(name)}));
+      }).then(function(){
+        localStorage.setItem('siq_ver',APP_VERSION);
+        if(lastVer)window.location.reload(true);
+      });
+    } else {
+      localStorage.setItem('siq_ver',APP_VERSION);
+    }
+  } else {
+    navigator.serviceWorker.register('sw.js').catch(function(){});
   }
 }
 </script>
