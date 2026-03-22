@@ -233,7 +233,6 @@ input,select{font-family:inherit;outline:none;-webkit-user-select:text;user-sele
 
 <div id="hist" class="screen">
   <div class="hhdr"><h2>試合履歴</h2><button class="bk" onclick="showScreen('home')">← ホーム</button></div>
-  <div style="padding:0 0 8px 0"><input type="text" id="hist-search" placeholder="🔍 対戦相手・試合名で検索..." oninput="renderHist()" style="width:100%;padding:10px 14px;background:var(--bg3);border:1px solid var(--brd);border-radius:8px;color:var(--t1);font-size:14px;font-family:inherit;outline:none" onfocus="this.style.borderColor='var(--acc)'" onblur="this.style.borderColor='var(--brd)'"></div>
   <div style="display:flex;flex:1;overflow:hidden;gap:0">
     <div class="ghl" id="hlist" style="flex:1;padding-right:8px"><div class="empty">まだ試合データがありません</div></div>
     <div id="hist-edit" style="width:280px;flex-shrink:0;background:var(--bg2);border-left:1px solid var(--brd);padding:16px;overflow-y:auto;display:none">
@@ -1480,14 +1479,14 @@ function renderCareer(){
   ];
   h+=`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px">`;
   rankCats.forEach(function(cat){
-    var sorted=pStats.filter(function(p){return p[cat.key]>0}).sort(function(a,b){return b[cat.key]-a[cat.key]});
+    var sorted=pStats.filter(function(p){return cat.key==='eff'?p.gp>0:p[cat.key]>0}).sort(function(a,b){return b[cat.key]-a[cat.key]});
     h+=`<div style="background:var(--bgc);border:1px solid var(--brd);border-radius:8px;padding:10px">`;
     h+=`<div style="font-family:var(--fd);font-size:13px;font-weight:600;color:var(--t1);margin-bottom:6px">${cat.emoji} ${cat.label}</div>`;
     if(!sorted.length){h+=`<div style="font-size:11px;color:var(--t3)">データなし</div>`}
     else{
       sorted.forEach(function(p,i){
         var medal=i===0?'🥇':i===1?'🥈':i===2?'🥉':'';
-        var bar=sorted[0][cat.key]>0?Math.round(p[cat.key]/sorted[0][cat.key]*100):0;
+        var bar=sorted[0][cat.key]>0?Math.round(Math.max(0,p[cat.key])/sorted[0][cat.key]*100):0;
         h+=`<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">`;
         h+=`<span style="font-size:12px;min-width:18px">${medal||'#'+(i+1)}</span>`;
         h+=`<span style="font-size:11px;color:var(--t2);min-width:70px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">#${p.number} ${p.name}</span>`;
@@ -1504,7 +1503,7 @@ function renderCareer(){
   h+=`<div style="font-family:var(--fd);font-size:14px;color:var(--acc);margin:20px 0 10px;border-bottom:1px solid var(--brd);padding-bottom:4px">ランキング（1試合平均）</div>`;
   h+=`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px">`;
   rankCats.forEach(function(cat){
-    var sorted=pStats.filter(function(p){return p.gp>0&&p[cat.key]>0}).map(function(p){return Object.assign({},p,{avg:+(p[cat.key]/p.gp).toFixed(1)})}).sort(function(a,b){return b.avg-a.avg});
+    var sorted=pStats.filter(function(p){return p.gp>0&&(cat.key==='eff'||p[cat.key]>0)}).map(function(p){return Object.assign({},p,{avg:+(p[cat.key]/p.gp).toFixed(1)})}).sort(function(a,b){return b.avg-a.avg});
     h+=`<div style="background:var(--bgc);border:1px solid var(--brd);border-radius:8px;padding:10px">`;
     h+=`<div style="font-family:var(--fd);font-size:13px;font-weight:600;color:var(--t1);margin-bottom:6px">${cat.emoji} ${cat.label}/試合</div>`;
     if(!sorted.length){h+=`<div style="font-size:11px;color:var(--t3)">データなし</div>`}
@@ -1550,11 +1549,7 @@ function endGame(){if(!G||!confirm('この試合を終了しますか？'))retur
   G=null;localStorage.removeItem('siq_c');save();showScreen('home');
 }
 function renderHist(){const l=document.getElementById('hlist');if(!games.length){l.innerHTML='<div class="empty">まだ試合データがありません</div>';return}l.innerHTML='';
-  const sq=(document.getElementById('hist-search')?document.getElementById('hist-search').value:'').trim().toLowerCase();
-  const sorted=games.slice().sort((a,b)=>(b.date||'').localeCompare(a.date||''));
-  const filtered=sq?sorted.filter(g=>(g.opponent||'').toLowerCase().includes(sq)||(g.gameName||'').toLowerCase().includes(sq)||(g.myTeamName||myTeam.name||'').toLowerCase().includes(sq)||(g.date||'').includes(sq)):sorted;
-  if(!filtered.length){l.innerHTML='<div class="empty">「'+sq+'」に一致する試合がありません</div>';return}
-  filtered.forEach(g=>{const d=document.createElement('div');d.className='ghi';
+  games.slice().sort((a,b)=>(b.date||'').localeCompare(a.date||'')).forEach(g=>{const d=document.createElement('div');d.className='ghi';
     const gn=g.gameName?`<div style="font-size:10px;color:var(--t3);margin-top:1px">${g.gameName}</div>`:'';
     d.innerHTML=`<div class="ghi-d">${g.date}</div><div class="ghi-t"><div>${g.myTeamName||myTeam.name||'MY'} vs ${g.opponent}</div>${gn}</div><div class="ghi-s">${g.myScore} - ${g.oppScore}</div><button class="ghi-x" style="opacity:1;background:var(--bluebg);color:var(--blue)" onclick="editGameInfo('${g.id}',event)">編集</button><button class="ghi-x" onclick="delG('${g.id}',event)">削除</button>`;
     d.onclick=e=>{if(e.target.classList.contains('ghi-x'))return;ldG(g.id)};l.appendChild(d)})}
