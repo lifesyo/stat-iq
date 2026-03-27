@@ -1669,13 +1669,12 @@ async function exportBoxPDF(){
 
   // Score banner
   roundRect(c1,10,16,pw-20,16,2,C.dark);
-  c1.textAlign='center';c1.textBaseline='middle';
+  c1.textAlign='center';
   c1.font='700 '+mm(10)+'px Oswald,sans-serif';c1.fillStyle='#ffffff';
-  c1.fillText(myScore+' - '+oppScore,mm(pw/2),mm(26));
+  c1.fillText(myScore+' - '+oppScore,mm(pw/2),mm(28.5));
   // Team names on banner
-  c1.font='600 '+mm(5)+'px Oswald,sans-serif';c1.fillStyle='#ffffff';
-  c1.textBaseline='middle';
-  c1.textAlign='left';
+  c1.font='600 '+mm(5)+'px Oswald,sans-serif';
+  c1.textAlign='left';c1.fillStyle='#ffffff';
   c1.fillText(myLabel,mm(18),mm(27));
   c1.textAlign='right';
   c1.fillText(oppLabel,mm(pw-18),mm(27));
@@ -1768,6 +1767,7 @@ async function exportBoxPDF(){
       ctx.fillText(String(v),mm(i===0?rx+0.5:rx+cw[i]/2),mm(y+rH/2));
       rx+=cw[i];
     });
+    ctx.textAlign='left';
     return y+rH+1;
   }
 
@@ -1784,7 +1784,7 @@ async function exportBoxPDF(){
   tblY=drawTbl(c1,tblY,myTeam.players,'my','all',C.accent);
   tblY+=1;
   // OPP team label
-  c1.font='600 '+mm(3)+'px Oswald,sans-serif';c1.fillStyle=C.opp;
+  c1.textAlign='left';c1.font='600 '+mm(3)+'px Oswald,sans-serif';c1.fillStyle=C.opp;
   c1.fillText(oppLabel,mm(10),mm(tblY+1.5));tblY+=4;
   drawTbl(c1,tblY,G.oppPlayers,'opp','all',C.opp);
 
@@ -1856,6 +1856,7 @@ async function exportBoxPDF(){
       ctx.fillText(String(v),mm(i===0?rx+0.5:rx+cw[i]/2),mm(y+rH/2));
       rx+=cw[i];
     });
+    ctx.textAlign='left';
     return y+rH;
   }
 
