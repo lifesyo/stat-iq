@@ -884,8 +884,11 @@ function drawShotDots(w,h,shots,teamColor,flip){
 
 // Zone detection — uses 3P arc distance from basket center (7.5, 0.55)
 // Basket center: x=7.5, y=0.55 (matches court drawing). 3P radius: 6.75m. Corner distance: 0.9m from sideline.
-// Corner 3P tolerance widened slightly (1.15m) to account for touch inaccuracy on rotated courts.
+// Corner 3P detection widened for touch accuracy, especially near baseline on rotated courts.
 function is3pt(mx,my){
+  // Corner 3P: near baseline (y<2.5) and near sideline — wider tolerance for touch
+  if(my<2.5&&(mx<1.5||mx>13.5)) return true;
+  // Standard corner line
   if(mx<1.15||mx>13.85) return true;
   const dx=mx-7.5,dy=my-0.55;
   return Math.sqrt(dx*dx+dy*dy)>=6.75;
