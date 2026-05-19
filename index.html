@@ -232,7 +232,7 @@ input,select{font-family:inherit;outline:none;-webkit-user-select:text;user-sele
 <div class="spop" id="sp-opp"><button class="spb made" onclick="recShot('opp',true)">○ 成功</button><button class="spb miss" onclick="recShot('opp',false)">× 失敗</button><button class="spb cnc" onclick="canShot('opp')">取消</button></div>
 
 <div id="hist" class="screen">
-  <div class="hhdr"><h2>試合履歴</h2><button class="bk" onclick="showScreen('home')">← ホーム</button></div>
+  <div class="hhdr"><h2>試合履歴 <span id="hist-team-name" style="font-size:14px;color:var(--acc);margin-left:8px"></span></h2><button class="bk" onclick="showScreen('home')">← ホーム</button></div>
   <div style="display:flex;flex:1;overflow:hidden;gap:0">
     <div class="ghl" id="hlist" style="flex:1;padding-right:8px"><div class="empty">まだ試合データがありません</div></div>
     <div id="hist-edit" style="width:280px;flex-shrink:0;background:var(--bg2);border-left:1px solid var(--brd);padding:16px;overflow-y:auto;display:none">
@@ -1713,8 +1713,15 @@ function endGame(){if(!G||!confirm('この試合を終了しますか？'))retur
   // Data is already auto-saved into games[] by save(), just clear active game
   G=null;localStorage.removeItem('siq_c');save();showScreen('home');
 }
-function renderHist(){const l=document.getElementById('hlist');if(!games.length){l.innerHTML='<div class="empty">まだ試合データがありません</div>';return}l.innerHTML='';
-  games.slice().sort((a,b)=>(b.date||'').localeCompare(a.date||'')).forEach(g=>{const d=document.createElement('div');d.className='ghi';
+function renderHist(){const l=document.getElementById('hlist');
+  // Show current team name in header
+  var tnEl=document.getElementById('hist-team-name');
+  if(tnEl)tnEl.textContent='— '+(myTeam.name||'MY TEAM');
+  // Filter games by current active team
+  var activeId=myTeams[activeTeamIdx]?myTeams[activeTeamIdx].id:'';
+  var filtered=games.filter(function(g){return (g.myTeamId||'')===activeId});
+  if(!filtered.length){l.innerHTML='<div class="empty">'+( myTeam.name||'このチーム')+'の試合データはありません</div>';return}l.innerHTML='';
+  filtered.slice().sort((a,b)=>(b.date||'').localeCompare(a.date||'')).forEach(g=>{const d=document.createElement('div');d.className='ghi';
     const gn=g.gameName?`<div style="font-size:10px;color:var(--t3);margin-top:1px">${g.gameName}</div>`:'';
     d.innerHTML=`<div class="ghi-d">${g.date}</div><div class="ghi-t"><div>${g.myTeamName||myTeam.name||'MY'} vs ${g.opponent}</div>${gn}</div><div class="ghi-s">${g.myScore} - ${g.oppScore}</div><button class="ghi-x" style="opacity:1;background:var(--bluebg);color:var(--blue)" onclick="editGameInfo('${g.id}',event)">編集</button><button class="ghi-x" onclick="delG('${g.id}',event)">削除</button>`;
     d.onclick=e=>{if(e.target.classList.contains('ghi-x'))return;ldG(g.id)};l.appendChild(d)})}
