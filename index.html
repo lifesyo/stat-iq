@@ -884,8 +884,9 @@ function drawShotDots(w,h,shots,teamColor,flip){
 
 // Zone detection — uses 3P arc distance from basket center (7.5, 0.55)
 // Basket center: x=7.5, y=0.55 (matches court drawing). 3P radius: 6.75m. Corner distance: 0.9m from sideline.
+// Corner 3P tolerance widened slightly (1.15m) to account for touch inaccuracy on rotated courts.
 function is3pt(mx,my){
-  if(mx<0.9||mx>14.1) return true;
+  if(mx<1.15||mx>13.85) return true;
   const dx=mx-7.5,dy=my-0.55;
   return Math.sqrt(dx*dx+dy*dy)>=6.75;
 }
@@ -924,12 +925,17 @@ function getDisplayZone(mx,my){return getZone(mx,my)}
   let cpx=e.clientX-r.left, cpy=e.clientY-r.top;
   const rot=d.rot||0;
   if(rot){
+    // Reverse the rotation transform: canvas center → unrotated drawing space
     const cxC=d.canvasW/2, cyC=d.canvasH/2;
     const dx=cpx-cxC, dy=cpy-cyC;
     const rad=-rot*Math.PI/180;
-    cpx=dx*Math.cos(rad)-dy*Math.sin(rad)+d.drawW/2;
-    cpy=dx*Math.sin(rad)+dy*Math.cos(rad)+d.drawH/2;
+    const ux=dx*Math.cos(rad)-dy*Math.sin(rad);
+    const uy=dx*Math.sin(rad)+dy*Math.cos(rad);
+    // In drawing space, origin is at (drawW/2, drawH/2) mapped from canvas center
+    cpx=ux+d.drawW/2;
+    cpy=uy+d.drawH/2;
   }
+  // Use the same px (min of pxX/pxY) and offsets stored during drawCourt
   let mx=(cpx-d.oX)/d.px,my=14-(cpy-d.oY)/d.px;
   // Only register shot if tap is within the court area (0-15 x 0-14)
   if(mx<-0.3||mx>15.3||my<-0.3||my>14.3)return;
