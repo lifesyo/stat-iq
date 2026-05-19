@@ -427,10 +427,26 @@ function delMyTeam(idx){
   else myTeam={name:'',players:[]};
   save();renderMyTeamList();
 }
+// Sort players by jersey number: 0 first, 00 second, then 1,2,3...
+function sortPlayersByNumber(players){
+  players.sort(function(a,b){
+    var na=String(a.number).trim(), nb=String(b.number).trim();
+    // Special rank: "0"→-2, "00"→-1, others→parsed number
+    function rank(s){
+      if(s==='0')return -2;
+      if(s==='00')return -1;
+      var n=parseInt(s,10);
+      return isNaN(n)?9999:n;
+    }
+    return rank(na)-rank(nb);
+  });
+}
+
 function saveTeam(){
   const name=document.getElementById('tm-name').value.trim()||'MY TEAM';
   const players=[];
   document.querySelectorAll('#tm-list .pr').forEach(r=>{const i=r.querySelectorAll('input'),n=i[0].value.trim(),nm=i[1].value.trim();if(n||nm)players.push({number:n,name:nm||('選手'+n),id:r.dataset.pid||uid()})});
+  sortPlayersByNumber(players);
   const editIdx=parseInt(document.getElementById('tm-edit-idx').value);
   if(editIdx>=0&&editIdx<myTeams.length){
     // Preserve player IDs for existing players matched by position
