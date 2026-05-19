@@ -1690,101 +1690,56 @@ function renderCareer(){
 
   // ===== PLAYER GROWTH CHART =====
   h+=`<div style="font-family:var(--fd);font-size:14px;color:var(--acc);margin:24px 0 10px;border-bottom:1px solid var(--brd);padding-bottom:4px">選手 成長グラフ</div>`;
-  h+=`<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:12px" id="growth-player-btns"></div>`;
-  h+=`<div style="display:flex;gap:4px;margin-bottom:12px;flex-wrap:wrap" id="growth-stat-btns"></div>`;
-  h+=`<div id="growth-chart-area" style="background:var(--bg2);border:1px solid var(--brd);border-radius:10px;padding:16px;min-height:200px"></div>`;
+  h+=`<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:10px" id="growth-player-btns"></div>`;
+  h+=`<div id="growth-chart-area" style="min-height:60px"></div>`;
 
   ct.innerHTML=h;
 
-  // Build growth chart UI after innerHTML
   requestAnimationFrame(function(){
     var sortedGames=fg.slice().sort(function(a,b){return (a.date||'').localeCompare(b.date||'')});
     var growthPlayerEl=document.getElementById('growth-player-btns');
-    var growthStatEl=document.getElementById('growth-stat-btns');
     var growthChartEl=document.getElementById('growth-chart-area');
-    if(!growthPlayerEl||!growthStatEl||!growthChartEl)return;
+    if(!growthPlayerEl||!growthChartEl)return;
 
-    // State
     window._growthPid=window._growthPid||null;
-    window._growthStat=window._growthStat||'pts';
-    var statOptions=[
-      {key:'pts',label:'得点'},
-      {key:'reb',label:'リバウンド'},
-      {key:'ast',label:'アシスト'},
-      {key:'stl',label:'スティール'},
-      {key:'blk',label:'ブロック'},
-      {key:'to',label:'ターンオーバー'},
-      {key:'fgp',label:'FG%'},
-      {key:'tpp',label:'3P%'},
-      {key:'ftp',label:'FT%'},
-      {key:'eff',label:'EFF'}
-    ];
 
-    // Player buttons
     var pbH='';
     pStats.forEach(function(p){
       var sel=window._growthPid===(p.id||p.number+'_'+p.name);
-      pbH+='<button style="padding:4px 10px;border-radius:5px;background:'+(sel?'var(--accbg)':'var(--bg3)')+';border:1px solid '+(sel?'var(--acc)':'var(--brd)')+';color:'+(sel?'var(--acc)':'var(--t2)')+';font-size:11px;font-weight:600;font-family:var(--fd);cursor:pointer" data-pid="'+(p.id||p.number+'_'+p.name)+'">#'+p.number+' '+p.name+'</button>';
+      pbH+='<button style="padding:5px 12px;border-radius:6px;background:'+(sel?'var(--accbg)':'var(--bg3)')+';border:1px solid '+(sel?'var(--acc)':'var(--brd)')+';color:'+(sel?'var(--acc)':'var(--t2)')+';font-size:12px;font-weight:700;font-family:var(--fd);cursor:pointer" data-pid="'+(p.id||p.number+'_'+p.name)+'">#'+p.number+' '+p.name+'</button>';
     });
     growthPlayerEl.innerHTML=pbH;
     growthPlayerEl.querySelectorAll('button').forEach(function(btn){
       btn.onclick=function(){
         window._growthPid=btn.dataset.pid;
-        renderGrowthChart(sortedGames,pStats,growthPlayerEl,growthStatEl,growthChartEl,statOptions);
+        drawGrowth(sortedGames,pStats,growthPlayerEl,growthChartEl);
       };
     });
 
-    // Stat buttons
-    var sbH='';
-    statOptions.forEach(function(s){
-      var sel=window._growthStat===s.key;
-      sbH+='<button style="padding:4px 10px;border-radius:5px;background:'+(sel?'var(--mybg)':'var(--bg3)')+';border:1px solid '+(sel?'var(--my)':'var(--brd)')+';color:'+(sel?'var(--my)':'var(--t2)')+';font-size:10px;font-weight:600;cursor:pointer" data-stat="'+s.key+'">'+s.label+'</button>';
-    });
-    growthStatEl.innerHTML=sbH;
-    growthStatEl.querySelectorAll('button').forEach(function(btn){
-      btn.onclick=function(){
-        window._growthStat=btn.dataset.stat;
-        renderGrowthChart(sortedGames,pStats,growthPlayerEl,growthStatEl,growthChartEl,statOptions);
-      };
-    });
-
-    // Initial render
-    if(window._growthPid)renderGrowthChart(sortedGames,pStats,growthPlayerEl,growthStatEl,growthChartEl,statOptions);
-    else growthChartEl.innerHTML='<div style="text-align:center;padding:40px;color:var(--t3);font-size:12px">選手を選択してください</div>';
+    if(window._growthPid)drawGrowth(sortedGames,pStats,growthPlayerEl,growthChartEl);
+    else growthChartEl.innerHTML='<div style="text-align:center;padding:30px;color:var(--t3);font-size:12px">選手を選択してください</div>';
   });
 }
 
-function renderGrowthChart(sortedGames,pStats,playerEl,statEl,chartEl,statOptions){
-  // Re-highlight buttons
+function drawGrowth(sortedGames,pStats,playerEl,chartEl){
   playerEl.querySelectorAll('button').forEach(function(b){
     var sel=b.dataset.pid===window._growthPid;
     b.style.background=sel?'var(--accbg)':'var(--bg3)';
     b.style.borderColor=sel?'var(--acc)':'var(--brd)';
     b.style.color=sel?'var(--acc)':'var(--t2)';
   });
-  statEl.querySelectorAll('button').forEach(function(b){
-    var sel=b.dataset.stat===window._growthStat;
-    b.style.background=sel?'var(--mybg)':'var(--bg3)';
-    b.style.borderColor=sel?'var(--my)':'var(--brd)';
-    b.style.color=sel?'var(--my)':'var(--t2)';
-  });
 
   var pid=window._growthPid;
-  var statKey=window._growthStat;
   var pInfo=pStats.find(function(p){return (p.id||p.number+'_'+p.name)===pid});
-  if(!pInfo){chartEl.innerHTML='<div style="text-align:center;padding:40px;color:var(--t3);font-size:12px">選手を選択してください</div>';return}
+  if(!pInfo){chartEl.innerHTML='<div style="text-align:center;padding:30px;color:var(--t3);font-size:12px">選手を選択</div>';return}
 
-  // Gather per-game stats for this player
+  // Gather per-game data
   var dataPoints=[];
-  var cumul={pts:0,reb:0,ast:0,stl:0,blk:0,to:0,fgm:0,fga:0,tpm:0,tpa:0,ftm:0,fta:0,eff:0};
-  sortedGames.forEach(function(g,gi){
+  sortedGames.forEach(function(g){
     if(!g.data||!g.data.events)return;
     var ps=g.data.myPlayers||[];
     var pidx=-1;
-    ps.forEach(function(p,i){
-      var key=p.id||(p.number+'_'+p.name);
-      if(key===pid)pidx=i;
-    });
+    ps.forEach(function(p,i){if((p.id||(p.number+'_'+p.name))===pid)pidx=i});
     if(pidx<0)return;
     var ev=g.data.events.filter(function(e){return e.side==='my'&&e.pid===pidx});
     if(!ev.length)return;
@@ -1793,127 +1748,81 @@ function renderGrowthChart(sortedGames,pStats,playerEl,statEl,chartEl,statOption
     var gPts=ev.reduce(function(s,e){return s+(e.pts||0)},0);
     var gFgm=s2.filter(function(e){return e.made}).length+s3.filter(function(e){return e.made}).length;
     var gFga=s2.length+s3.length;
-    var gTpm=s3.filter(function(e){return e.made}).length;
-    var gTpa=s3.length;
     var gFtm=ev.filter(function(e){return e.type==='FT_MADE'}).length;
     var gFta=gFtm+ev.filter(function(e){return e.type==='FT_MISS'}).length;
-    var gOr=ev.filter(function(e){return e.type==='OR'}).length;
-    var gDr=ev.filter(function(e){return e.type==='DR'}).length;
-    var gReb=gOr+gDr;
+    var gReb=ev.filter(function(e){return e.type==='OR'||e.type==='DR'}).length;
     var gAst=ev.filter(function(e){return e.type==='AST'}).length;
     var gStl=ev.filter(function(e){return e.type==='STL'}).length;
     var gBlk=ev.filter(function(e){return e.type==='BLK'}).length;
     var gTo=ev.filter(function(e){return e.type==='TO'}).length;
     var gEff=gPts+gReb+gAst+gStl+gBlk-(gFga-gFgm)-(gFta-gFtm)-gTo;
-    var gFgp=gFga?Math.round(gFgm/gFga*100):0;
-    var gTpp=gTpa?Math.round(gTpm/gTpa*100):0;
-    var gFtp=gFta?Math.round(gFtm/gFta*100):0;
-
     dataPoints.push({
       date:g.date||'',opp:g.opponent||'',
-      pts:gPts,reb:gReb,ast:gAst,stl:gStl,blk:gBlk,to:gTo,
-      fgp:gFgp,tpp:gTpp,ftp:gFtp,eff:gEff
+      pts:gPts,reb:gReb,ast:gAst,stl:gStl,eff:gEff
     });
   });
 
-  if(!dataPoints.length){chartEl.innerHTML='<div style="text-align:center;padding:40px;color:var(--t3);font-size:12px">この選手の試合データがありません</div>';return}
+  if(!dataPoints.length){chartEl.innerHTML='<div style="text-align:center;padding:30px;color:var(--t3);font-size:12px">この選手の試合データがありません</div>';return}
 
-  // Draw canvas chart
-  var statLabel=(statOptions.find(function(s){return s.key===statKey})||{}).label||statKey;
-  var isPercent=statKey==='fgp'||statKey==='tpp'||statKey==='ftp';
-  var vals=dataPoints.map(function(d){return d[statKey]});
-  var maxV=Math.max.apply(null,vals);
-  var minV=Math.min.apply(null,vals);
-  if(maxV===minV){maxV+=isPercent?10:5;minV=Math.max(0,minV-(isPercent?10:2))}
-  if(minV>0&&!isPercent)minV=0;
-  var range=maxV-minV||1;
+  // Draw mini sparklines for key stats
+  var stats=[
+    {key:'pts',label:'PTS',color:'#00c978'},
+    {key:'reb',label:'REB',color:'#4a8ff5'},
+    {key:'ast',label:'AST',color:'#f59e42'},
+    {key:'stl',label:'STL',color:'#e06090'},
+    {key:'eff',label:'EFF',color:'#a78bfa'}
+  ];
 
-  var cW=Math.max(chartEl.clientWidth-32,300);
-  var cH=220;
-  var cv=document.createElement('canvas');
-  cv.width=cW*2;cv.height=cH*2;cv.style.width=cW+'px';cv.style.height=cH+'px';
-  var ctx=cv.getContext('2d');ctx.scale(2,2);
+  var h='<div style="font-family:var(--fd);font-size:15px;font-weight:700;color:var(--t1);margin-bottom:10px">#'+pInfo.number+' '+pInfo.name+'</div>';
+  h+='<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:10px">';
 
-  var padL=40,padR=16,padT=24,padB=40;
-  var gW=cW-padL-padR,gH=cH-padT-padB;
+  stats.forEach(function(st){
+    var vals=dataPoints.map(function(d){return d[st.key]});
+    var maxV=Math.max.apply(null,vals);
+    var minV=Math.min.apply(null,vals);
+    var avg=(vals.reduce(function(a,b){return a+b},0)/vals.length).toFixed(1);
+    var latest=vals[vals.length-1];
+    if(maxV===minV){maxV+=3;minV=Math.max(0,minV-1)}
+    if(minV>0)minV=0;
+    var range=maxV-minV||1;
 
-  // Background
-  ctx.fillStyle='#12171e';ctx.fillRect(0,0,cW,cH);
+    var svgW=200,svgH=50;
+    var n=vals.length;
+    var pts=[];
+    for(var i=0;i<n;i++){
+      var x=n>1?(i/(n-1))*svgW:svgW/2;
+      var y=svgH-((vals[i]-minV)/range)*svgH;
+      pts.push(x.toFixed(1)+','+y.toFixed(1));
+    }
+    var polyline=pts.join(' ');
+    // Area
+    var area=pts.join(' ')+' '+svgW+','+svgH+' 0,'+svgH;
 
-  // Grid lines
-  var gridCount=5;
-  ctx.strokeStyle='rgba(255,255,255,.06)';ctx.lineWidth=1;
-  ctx.fillStyle='#556070';ctx.font='500 10px Inter,sans-serif';ctx.textAlign='right';ctx.textBaseline='middle';
-  for(var gi=0;gi<=gridCount;gi++){
-    var gy=padT+gH-gH*(gi/gridCount);
-    var gv=minV+range*(gi/gridCount);
-    ctx.beginPath();ctx.moveTo(padL,gy);ctx.lineTo(padL+gW,gy);ctx.stroke();
-    ctx.fillText(isPercent?Math.round(gv)+'%':Math.round(gv),padL-6,gy);
-  }
+    h+='<div style="background:var(--bgc);border:1px solid var(--brd);border-radius:8px;padding:10px">';
+    h+='<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">';
+    h+='<span style="font-family:var(--fd);font-size:13px;font-weight:700;color:'+st.color+'">'+st.label+'</span>';
+    h+='<span style="font-size:11px;color:var(--t2)">Avg <strong style="color:var(--t1)">'+avg+'</strong></span>';
+    h+='</div>';
+    h+='<svg width="100%" viewBox="0 0 '+svgW+' '+svgH+'" preserveAspectRatio="none" style="display:block">';
+    h+='<polygon points="'+area+'" fill="'+st.color+'" opacity="0.1"/>';
+    h+='<polyline points="'+polyline+'" fill="none" stroke="'+st.color+'" stroke-width="2" stroke-linejoin="round"/>';
+    // Latest dot
+    if(n>0){
+      var lx=n>1?svgW:svgW/2;
+      var ly=svgH-((latest-minV)/range)*svgH;
+      h+='<circle cx="'+lx.toFixed(1)+'" cy="'+ly.toFixed(1)+'" r="3" fill="'+st.color+'"/>';
+    }
+    h+='</svg>';
+    h+='<div style="display:flex;justify-content:space-between;margin-top:4px;font-size:10px;color:var(--t3)">';
+    h+='<span>'+dataPoints[0].date.slice(5)+'</span>';
+    h+='<span style="color:var(--t1);font-weight:700">直近 '+latest+'</span>';
+    h+='<span>'+dataPoints[n-1].date.slice(5)+'</span>';
+    h+='</div>';
+    h+='</div>';
+  });
 
-  // Data points
-  var n=dataPoints.length;
-  var stepX=n>1?gW/(n-1):gW/2;
-
-  // Area fill
-  ctx.beginPath();
-  for(var i=0;i<n;i++){
-    var px=padL+(n>1?i*stepX:gW/2);
-    var py=padT+gH-gH*((vals[i]-minV)/range);
-    if(i===0)ctx.moveTo(px,py);else ctx.lineTo(px,py);
-  }
-  ctx.lineTo(padL+(n>1?(n-1)*stepX:gW/2),padT+gH);
-  ctx.lineTo(padL+(n>1?0:gW/2),padT+gH);
-  ctx.closePath();
-  ctx.fillStyle='rgba(0,201,120,.1)';ctx.fill();
-
-  // Line
-  ctx.beginPath();
-  for(var i=0;i<n;i++){
-    var px=padL+(n>1?i*stepX:gW/2);
-    var py=padT+gH-gH*((vals[i]-minV)/range);
-    if(i===0)ctx.moveTo(px,py);else ctx.lineTo(px,py);
-  }
-  ctx.strokeStyle='#00c978';ctx.lineWidth=2.5;ctx.lineJoin='round';ctx.stroke();
-
-  // Dots + labels
-  ctx.fillStyle='#00c978';
-  ctx.textAlign='center';ctx.textBaseline='bottom';
-  for(var i=0;i<n;i++){
-    var px=padL+(n>1?i*stepX:gW/2);
-    var py=padT+gH-gH*((vals[i]-minV)/range);
-    ctx.beginPath();ctx.arc(px,py,4,0,Math.PI*2);ctx.fill();
-    // Value label
-    ctx.fillStyle='#e4e8ef';ctx.font='700 11px Oswald,sans-serif';
-    ctx.fillText(isPercent?vals[i]+'%':vals[i],px,py-8);
-    ctx.fillStyle='#00c978';
-  }
-
-  // X axis labels (dates)
-  ctx.fillStyle='#556070';ctx.font='500 9px Inter,sans-serif';ctx.textAlign='center';ctx.textBaseline='top';
-  var labelStep=Math.max(1,Math.floor(n/12));
-  for(var i=0;i<n;i++){
-    if(i%labelStep!==0&&i!==n-1)continue;
-    var px=padL+(n>1?i*stepX:gW/2);
-    var dlabel=dataPoints[i].date.slice(5)||dataPoints[i].date;
-    ctx.save();ctx.translate(px,padT+gH+4);ctx.rotate(Math.PI*0.25);
-    ctx.fillText(dlabel,0,0);ctx.restore();
-  }
-
-  // Title
-  ctx.fillStyle='#e4e8ef';ctx.font='700 13px Oswald,sans-serif';ctx.textAlign='left';ctx.textBaseline='top';
-  ctx.fillText('#'+pInfo.number+' '+pInfo.name+' — '+statLabel,padL,4);
-
-  // Average line
-  var avgVal=vals.reduce(function(a,b){return a+b},0)/n;
-  var avgY=padT+gH-gH*((avgVal-minV)/range);
-  ctx.setLineDash([4,3]);ctx.strokeStyle='rgba(245,158,66,.5)';ctx.lineWidth=1;
-  ctx.beginPath();ctx.moveTo(padL,avgY);ctx.lineTo(padL+gW,avgY);ctx.stroke();ctx.setLineDash([]);
-  ctx.fillStyle='#f59e42';ctx.font='500 9px Inter,sans-serif';ctx.textAlign='left';
-  ctx.fillText('Avg '+(isPercent?avgVal.toFixed(0)+'%':avgVal.toFixed(1)),padL+gW+2,avgY-4);
-
-  chartEl.innerHTML='';
-  chartEl.appendChild(cv);
+  h+='</div>';
+  chartEl.innerHTML=h;
 }
 
 function buildCareerTable(pStats,isAvg){
