@@ -943,7 +943,25 @@ function getDisplayZone(mx,my){return getZone(mx,my)}
   // Only register shot if tap is within the court area (0-15 x 0-14)
   if(mx<-0.3||mx>15.3||my<-0.3||my>14.3)return;
   mx=Math.max(0,Math.min(15,mx));my=Math.max(0,Math.min(14,my));
-  pending[side]={x:mx,y:my,zone:getZone(mx,my),is3:is3pt(mx,my)};
+  // If shot is 3PT but marker landed inside the arc, push it outside
+  var shotIs3=is3pt(mx,my);
+  if(shotIs3){
+    var sdx=mx-7.5,sdy=my-0.55;
+    var sDist=Math.sqrt(sdx*sdx+sdy*sdy);
+    // Corner: ensure x is outside the corner line
+    if(my<2.5){
+      if(mx>7.5&&mx<13.85)mx=13.85;
+      else if(mx<7.5&&mx>1.15)mx=1.15;
+    }
+    // Arc: if inside the arc radius, push outward along the same angle
+    if(sDist<6.75&&mx>=1.15&&mx<=13.85){
+      var ang=Math.atan2(sdy,sdx);
+      mx=7.5+Math.cos(ang)*6.85;
+      my=0.55+Math.sin(ang)*6.85;
+      mx=Math.max(0,Math.min(15,mx));my=Math.max(0,Math.min(14,my));
+    }
+  }
+  pending[side]={x:mx,y:my,zone:getZone(mx,my),is3:shotIs3};
   const pop=document.getElementById('sp-'+side);
   let px2=e.clientX+10,py2=e.clientY-20;
   const popW=260,popH=50;
