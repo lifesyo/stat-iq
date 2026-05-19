@@ -1689,140 +1689,163 @@ function renderCareer(){
   h+=`</div>`;
 
   // ===== PLAYER GROWTH CHART =====
-  h+=`<div style="font-family:var(--fd);font-size:14px;color:var(--acc);margin:24px 0 10px;border-bottom:1px solid var(--brd);padding-bottom:4px">選手 成長グラフ</div>`;
-  h+=`<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:10px" id="growth-player-btns"></div>`;
+  h+=`<div style="font-family:var(--fd);font-size:14px;color:var(--acc);margin:24px 0 10px;border-bottom:1px solid var(--brd);padding-bottom:4px">選手 成長グラフ（3ヶ月平均）</div>`;
+  h+=`<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px" id="growth-player-btns"></div>`;
+  h+=`<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:10px" id="growth-stat-btns"></div>`;
   h+=`<div id="growth-chart-area" style="min-height:60px"></div>`;
 
   ct.innerHTML=h;
 
   requestAnimationFrame(function(){
     var sortedGames=fg.slice().sort(function(a,b){return (a.date||'').localeCompare(b.date||'')});
-    var growthPlayerEl=document.getElementById('growth-player-btns');
-    var growthChartEl=document.getElementById('growth-chart-area');
-    if(!growthPlayerEl||!growthChartEl)return;
+    var gpEl=document.getElementById('growth-player-btns');
+    var gsEl=document.getElementById('growth-stat-btns');
+    var gcEl=document.getElementById('growth-chart-area');
+    if(!gpEl||!gsEl||!gcEl)return;
 
     window._growthPid=window._growthPid||null;
+    window._growthStat=window._growthStat||'pts';
+    var statOpts=[
+      {key:'pts',label:'得点'},{key:'reb',label:'REB'},{key:'ast',label:'AST'},
+      {key:'stl',label:'STL'},{key:'blk',label:'BLK'},{key:'to',label:'TO'},
+      {key:'fgp',label:'FG%'},{key:'tpp',label:'3P%'},{key:'ftp',label:'FT%'},{key:'eff',label:'EFF'}
+    ];
+    function render(){drawGrowth(sortedGames,pStats,gpEl,gsEl,gcEl,statOpts)}
 
     var pbH='';
     pStats.forEach(function(p){
-      var sel=window._growthPid===(p.id||p.number+'_'+p.name);
-      pbH+='<button style="padding:5px 12px;border-radius:6px;background:'+(sel?'var(--accbg)':'var(--bg3)')+';border:1px solid '+(sel?'var(--acc)':'var(--brd)')+';color:'+(sel?'var(--acc)':'var(--t2)')+';font-size:12px;font-weight:700;font-family:var(--fd);cursor:pointer" data-pid="'+(p.id||p.number+'_'+p.name)+'">#'+p.number+' '+p.name+'</button>';
+      var k=p.id||p.number+'_'+p.name;
+      var sel=window._growthPid===k;
+      pbH+='<button style="padding:5px 12px;border-radius:6px;background:'+(sel?'var(--accbg)':'var(--bg3)')+';border:1px solid '+(sel?'var(--acc)':'var(--brd)')+';color:'+(sel?'var(--acc)':'var(--t2)')+';font-size:12px;font-weight:700;font-family:var(--fd);cursor:pointer" data-pid="'+k+'">#'+p.number+' '+p.name+'</button>';
     });
-    growthPlayerEl.innerHTML=pbH;
-    growthPlayerEl.querySelectorAll('button').forEach(function(btn){
-      btn.onclick=function(){
-        window._growthPid=btn.dataset.pid;
-        drawGrowth(sortedGames,pStats,growthPlayerEl,growthChartEl);
-      };
-    });
+    gpEl.innerHTML=pbH;
+    gpEl.querySelectorAll('button').forEach(function(b){b.onclick=function(){window._growthPid=b.dataset.pid;render()}});
 
-    if(window._growthPid)drawGrowth(sortedGames,pStats,growthPlayerEl,growthChartEl);
-    else growthChartEl.innerHTML='<div style="text-align:center;padding:30px;color:var(--t3);font-size:12px">選手を選択してください</div>';
+    var sbH='';
+    statOpts.forEach(function(s){
+      var sel=window._growthStat===s.key;
+      sbH+='<button style="padding:4px 12px;border-radius:5px;background:'+(sel?'var(--mybg)':'var(--bg3)')+';border:1px solid '+(sel?'var(--my)':'var(--brd)')+';color:'+(sel?'var(--my)':'var(--t2)')+';font-size:11px;font-weight:600;cursor:pointer" data-stat="'+s.key+'">'+s.label+'</button>';
+    });
+    gsEl.innerHTML=sbH;
+    gsEl.querySelectorAll('button').forEach(function(b){b.onclick=function(){window._growthStat=b.dataset.stat;render()}});
+
+    if(window._growthPid)render();
+    else gcEl.innerHTML='<div style="text-align:center;padding:30px;color:var(--t3);font-size:12px">選手を選択してください</div>';
   });
 }
 
-function drawGrowth(sortedGames,pStats,playerEl,chartEl){
-  playerEl.querySelectorAll('button').forEach(function(b){
-    var sel=b.dataset.pid===window._growthPid;
-    b.style.background=sel?'var(--accbg)':'var(--bg3)';
-    b.style.borderColor=sel?'var(--acc)':'var(--brd)';
-    b.style.color=sel?'var(--acc)':'var(--t2)';
+function drawGrowth(sortedGames,pStats,gpEl,gsEl,gcEl,statOpts){
+  gpEl.querySelectorAll('button').forEach(function(b){
+    var s=b.dataset.pid===window._growthPid;
+    b.style.background=s?'var(--accbg)':'var(--bg3)';b.style.borderColor=s?'var(--acc)':'var(--brd)';b.style.color=s?'var(--acc)':'var(--t2)';
   });
-
-  var pid=window._growthPid;
+  gsEl.querySelectorAll('button').forEach(function(b){
+    var s=b.dataset.stat===window._growthStat;
+    b.style.background=s?'var(--mybg)':'var(--bg3)';b.style.borderColor=s?'var(--my)':'var(--brd)';b.style.color=s?'var(--my)':'var(--t2)';
+  });
+  var pid=window._growthPid,statKey=window._growthStat;
   var pInfo=pStats.find(function(p){return (p.id||p.number+'_'+p.name)===pid});
-  if(!pInfo){chartEl.innerHTML='<div style="text-align:center;padding:30px;color:var(--t3);font-size:12px">選手を選択</div>';return}
+  if(!pInfo){gcEl.innerHTML='<div style="text-align:center;padding:30px;color:var(--t3);font-size:12px">選手を選択</div>';return}
 
   // Gather per-game data
-  var dataPoints=[];
+  var gData=[];
   sortedGames.forEach(function(g){
     if(!g.data||!g.data.events)return;
-    var ps=g.data.myPlayers||[];
-    var pidx=-1;
+    var ps=g.data.myPlayers||[];var pidx=-1;
     ps.forEach(function(p,i){if((p.id||(p.number+'_'+p.name))===pid)pidx=i});
     if(pidx<0)return;
     var ev=g.data.events.filter(function(e){return e.side==='my'&&e.pid===pidx});
     if(!ev.length)return;
     var s2=ev.filter(function(e){return e.type==='SHOT'&&e.st==='2PT'});
     var s3=ev.filter(function(e){return e.type==='SHOT'&&e.st==='3PT'});
-    var gPts=ev.reduce(function(s,e){return s+(e.pts||0)},0);
-    var gFgm=s2.filter(function(e){return e.made}).length+s3.filter(function(e){return e.made}).length;
-    var gFga=s2.length+s3.length;
-    var gFtm=ev.filter(function(e){return e.type==='FT_MADE'}).length;
-    var gFta=gFtm+ev.filter(function(e){return e.type==='FT_MISS'}).length;
-    var gReb=ev.filter(function(e){return e.type==='OR'||e.type==='DR'}).length;
-    var gAst=ev.filter(function(e){return e.type==='AST'}).length;
-    var gStl=ev.filter(function(e){return e.type==='STL'}).length;
-    var gBlk=ev.filter(function(e){return e.type==='BLK'}).length;
-    var gTo=ev.filter(function(e){return e.type==='TO'}).length;
-    var gEff=gPts+gReb+gAst+gStl+gBlk-(gFga-gFgm)-(gFta-gFtm)-gTo;
-    dataPoints.push({
-      date:g.date||'',opp:g.opponent||'',
-      pts:gPts,reb:gReb,ast:gAst,stl:gStl,eff:gEff
-    });
+    var pts=ev.reduce(function(s,e){return s+(e.pts||0)},0);
+    var fgm=s2.filter(function(e){return e.made}).length+s3.filter(function(e){return e.made}).length;
+    var fga=s2.length+s3.length;
+    var tpm=s3.filter(function(e){return e.made}).length,tpa=s3.length;
+    var ftm=ev.filter(function(e){return e.type==='FT_MADE'}).length;
+    var fta=ftm+ev.filter(function(e){return e.type==='FT_MISS'}).length;
+    var reb=ev.filter(function(e){return e.type==='OR'||e.type==='DR'}).length;
+    var ast=ev.filter(function(e){return e.type==='AST'}).length;
+    var stl=ev.filter(function(e){return e.type==='STL'}).length;
+    var blk=ev.filter(function(e){return e.type==='BLK'}).length;
+    var to=ev.filter(function(e){return e.type==='TO'}).length;
+    var eff=pts+reb+ast+stl+blk-(fga-fgm)-(fta-ftm)-to;
+    gData.push({date:g.date||'',pts:pts,reb:reb,ast:ast,stl:stl,blk:blk,to:to,eff:eff,
+      fgm:fgm,fga:fga,tpm:tpm,tpa:tpa,ftm:ftm,fta:fta,
+      fgp:fga?Math.round(fgm/fga*100):0,tpp:tpa?Math.round(tpm/tpa*100):0,ftp:fta?Math.round(ftm/fta*100):0});
   });
+  if(!gData.length){gcEl.innerHTML='<div style="text-align:center;padding:30px;color:var(--t3);font-size:12px">データなし</div>';return}
 
-  if(!dataPoints.length){chartEl.innerHTML='<div style="text-align:center;padding:30px;color:var(--t3);font-size:12px">この選手の試合データがありません</div>';return}
-
-  // Draw mini sparklines for key stats
-  var stats=[
-    {key:'pts',label:'PTS',color:'#00c978'},
-    {key:'reb',label:'REB',color:'#4a8ff5'},
-    {key:'ast',label:'AST',color:'#f59e42'},
-    {key:'stl',label:'STL',color:'#e06090'},
-    {key:'eff',label:'EFF',color:'#a78bfa'}
-  ];
-
-  var h='<div style="font-family:var(--fd);font-size:15px;font-weight:700;color:var(--t1);margin-bottom:10px">#'+pInfo.number+' '+pInfo.name+'</div>';
-  h+='<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:10px">';
-
-  stats.forEach(function(st){
-    var vals=dataPoints.map(function(d){return d[st.key]});
-    var maxV=Math.max.apply(null,vals);
-    var minV=Math.min.apply(null,vals);
-    var avg=(vals.reduce(function(a,b){return a+b},0)/vals.length).toFixed(1);
-    var latest=vals[vals.length-1];
-    if(maxV===minV){maxV+=3;minV=Math.max(0,minV-1)}
-    if(minV>0)minV=0;
-    var range=maxV-minV||1;
-
-    var svgW=200,svgH=50;
-    var n=vals.length;
-    var pts=[];
-    for(var i=0;i<n;i++){
-      var x=n>1?(i/(n-1))*svgW:svgW/2;
-      var y=svgH-((vals[i]-minV)/range)*svgH;
-      pts.push(x.toFixed(1)+','+y.toFixed(1));
-    }
-    var polyline=pts.join(' ');
-    // Area
-    var area=pts.join(' ')+' '+svgW+','+svgH+' 0,'+svgH;
-
-    h+='<div style="background:var(--bgc);border:1px solid var(--brd);border-radius:8px;padding:10px">';
-    h+='<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">';
-    h+='<span style="font-family:var(--fd);font-size:13px;font-weight:700;color:'+st.color+'">'+st.label+'</span>';
-    h+='<span style="font-size:11px;color:var(--t2)">Avg <strong style="color:var(--t1)">'+avg+'</strong></span>';
-    h+='</div>';
-    h+='<svg width="100%" viewBox="0 0 '+svgW+' '+svgH+'" preserveAspectRatio="none" style="display:block">';
-    h+='<polygon points="'+area+'" fill="'+st.color+'" opacity="0.1"/>';
-    h+='<polyline points="'+polyline+'" fill="none" stroke="'+st.color+'" stroke-width="2" stroke-linejoin="round"/>';
-    // Latest dot
-    if(n>0){
-      var lx=n>1?svgW:svgW/2;
-      var ly=svgH-((latest-minV)/range)*svgH;
-      h+='<circle cx="'+lx.toFixed(1)+'" cy="'+ly.toFixed(1)+'" r="3" fill="'+st.color+'"/>';
-    }
-    h+='</svg>';
-    h+='<div style="display:flex;justify-content:space-between;margin-top:4px;font-size:10px;color:var(--t3)">';
-    h+='<span>'+dataPoints[0].date.slice(5)+'</span>';
-    h+='<span style="color:var(--t1);font-weight:700">直近 '+latest+'</span>';
-    h+='<span>'+dataPoints[n-1].date.slice(5)+'</span>';
-    h+='</div>';
-    h+='</div>';
+  // Group by 3-month quarter
+  var isPercent=statKey==='fgp'||statKey==='tpp'||statKey==='ftp';
+  var qMap={},qOrder=[];
+  gData.forEach(function(d){
+    var p=d.date.split('-'),y=p[0],m=parseInt(p[1]||'1',10),q=Math.ceil(m/3);
+    var k=y+'-Q'+q;
+    if(!qMap[k]){qMap[k]=[];qOrder.push(k)}
+    qMap[k].push(d);
   });
+  var points=[];
+  qOrder.forEach(function(k){
+    var items=qMap[k],val;
+    if(isPercent){
+      var tm=0,ta=0;
+      if(statKey==='fgp')items.forEach(function(d){tm+=d.fgm;ta+=d.fga});
+      else if(statKey==='tpp')items.forEach(function(d){tm+=d.tpm;ta+=d.tpa});
+      else items.forEach(function(d){tm+=d.ftm;ta+=d.fta});
+      val=ta?Math.round(tm/ta*100):0;
+    }else{
+      var sum=0;items.forEach(function(d){sum+=d[statKey]});
+      val=Math.round(sum/items.length*10)/10;
+    }
+    var lp=k.split('-Q'),yr=lp[0].slice(2),qi=parseInt(lp[1])||1;
+    var mr=['1-3月','4-6月','7-9月','10-12月'][qi-1]||'';
+    points.push({label:"'"+yr+' '+mr,val:val,games:items.length});
+  });
+  if(!points.length){gcEl.innerHTML='<div style="text-align:center;padding:30px;color:var(--t3);font-size:12px">データなし</div>';return}
 
-  h+='</div>';
-  chartEl.innerHTML=h;
+  var statLabel=(statOpts.find(function(s){return s.key===statKey})||{}).label||statKey;
+  var vals=points.map(function(p){return p.val});
+  var maxV=Math.max.apply(null,vals),minV=Math.min.apply(null,vals);
+  if(maxV===minV){maxV+=isPercent?10:3;minV=Math.max(0,minV-1)}
+  if(minV>0&&!isPercent)minV=0;
+  var range=maxV-minV||1;
+  var n=points.length;
+
+  // SVG chart
+  var svgW=Math.max(n*90,200),svgH=150;
+  var pL=8,pR=8,pT=24,pB=34,gW=svgW-pL-pR,gH=svgH-pT-pB;
+  var pts=[];
+  for(var i=0;i<n;i++){
+    var x=pL+(n>1?(i/(n-1))*gW:gW/2);
+    var y=pT+gH-((vals[i]-minV)/range)*gH;
+    pts.push({x:x,y:y});
+  }
+  var svg='<svg width="100%" viewBox="0 0 '+svgW+' '+svgH+'" style="display:block">';
+  // Area
+  var ap='M'+pts[0].x+','+pts[0].y;
+  for(var i=1;i<n;i++)ap+=' L'+pts[i].x+','+pts[i].y;
+  ap+=' L'+pts[n-1].x+','+(pT+gH)+' L'+pts[0].x+','+(pT+gH)+' Z';
+  svg+='<path d="'+ap+'" fill="rgba(0,201,120,.08)"/>';
+  // Line
+  var lp='M'+pts[0].x+','+pts[0].y;
+  for(var i=1;i<n;i++)lp+=' L'+pts[i].x+','+pts[i].y;
+  svg+='<path d="'+lp+'" fill="none" stroke="#00c978" stroke-width="2.5" stroke-linejoin="round"/>';
+  // Dots + values + x labels
+  for(var i=0;i<n;i++){
+    svg+='<circle cx="'+pts[i].x+'" cy="'+pts[i].y+'" r="4" fill="#00c978"/>';
+    svg+='<circle cx="'+pts[i].x+'" cy="'+pts[i].y+'" r="1.5" fill="#0b0f14"/>';
+    var vStr=isPercent?vals[i]+'%':vals[i];
+    svg+='<text x="'+pts[i].x+'" y="'+(pts[i].y-8)+'" fill="#e4e8ef" font-family="Oswald,sans-serif" font-size="13" font-weight="700" text-anchor="middle">'+vStr+'</text>';
+    svg+='<text x="'+pts[i].x+'" y="'+(pT+gH+12)+'" fill="#8a95a8" font-size="9" text-anchor="middle">'+points[i].label+'</text>';
+    svg+='<text x="'+pts[i].x+'" y="'+(pT+gH+22)+'" fill="#556070" font-size="7" text-anchor="middle">'+points[i].games+'試合</text>';
+  }
+  svg+='</svg>';
+
+  gcEl.innerHTML='<div style="background:var(--bg2);border:1px solid var(--brd);border-radius:10px;padding:12px">'
+    +'<div style="font-family:var(--fd);font-size:14px;font-weight:700;color:var(--t1);margin-bottom:8px">#'+pInfo.number+' '+pInfo.name
+    +' <span style="color:var(--acc);font-size:12px">'+statLabel+'</span></div>'
+    +'<div style="overflow-x:auto">'+svg+'</div></div>';
 }
 
 function buildCareerTable(pStats,isAvg){
