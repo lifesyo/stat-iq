@@ -83,7 +83,7 @@ input,select{font-family:inherit;outline:none;-webkit-user-select:text;user-sele
 .pcol{width:128px;padding:5px;background:var(--bg2);display:flex;flex-direction:column;gap:2px;overflow-y:auto;flex-shrink:0}
 .pcol.left{border-right:1px solid var(--brd)}.pcol.right{border-left:1px solid var(--brd)}
 .clbl{font-size:8px;font-weight:800;color:var(--t3);text-transform:uppercase;letter-spacing:1.5px;padding:4px 6px;margin-bottom:1px}
-.pbtn{padding:7px 8px;border-radius:7px;background:var(--bgc);border:2px solid transparent;display:flex;align-items:center;gap:6px;min-height:36px;transition:var(--tr);touch-action:none}
+.pbtn{padding:7px 8px;border-radius:7px;background:var(--bgc);border:2px solid transparent;display:flex;align-items:center;gap:6px;min-height:36px;transition:var(--tr)}
 .pbtn:hover{border-color:var(--brd2);background:var(--bg3)}.pbtn.sel{border-color:var(--acc);background:var(--accbg);box-shadow:inset 0 0 0 1px rgba(0,201,120,.15)}.pbtn.osel{border-color:var(--opp);background:var(--oppbg)}
 .dot{width:5px;height:5px;border-radius:50%;flex-shrink:0}.dot.on{background:var(--acc);box-shadow:0 0 4px var(--acc)}.dot.off{background:var(--t3)}.dot.oon{background:var(--opp);box-shadow:0 0 4px var(--opp)}
 .pn{font-family:var(--fd);font-size:16px;font-weight:700;min-width:26px}.pnm{font-size:10px;font-weight:500;color:var(--t2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -1016,17 +1016,21 @@ function nextQ(){if(!G||G.cq>=G.quarters-1)return;G.cq++;save();updateQUI()}
 function rotateCourt(side){courtRotation[side]=(courtRotation[side]+90)%360;drawCourt(side)}
 function updateQUI(){if(!G)return;const l='Q'+(G.cq+1);document.getElementById('sb-qn').textContent=l;document.getElementById('tb-q').textContent=l}
 
-// Sort on-court players by number (ascending) — mutates oc in place
+// Sort on-court players by number: 0 first, 00 second, then 1,2,3...
 function sortOC(side){
   if(!G)return;
   var oc=side==='my'?G.myOC:G.oppOC;
   var ps=side==='my'?myTeam.players:G.oppPlayers;
   oc.sort(function(a,b){
-    var numA=ps[a]?parseInt(ps[a].number,10):999;
-    var numB=ps[b]?parseInt(ps[b].number,10):999;
-    if(isNaN(numA))numA=999;
-    if(isNaN(numB))numB=999;
-    return numA-numB;
+    function rank(idx){
+      if(!ps[idx])return 9999;
+      var s=String(ps[idx].number).trim();
+      if(s==='0')return -2;
+      if(s==='00')return -1;
+      var n=parseInt(s,10);
+      return isNaN(n)?9999:n;
+    }
+    return rank(a)-rank(b);
   });
 }
 
@@ -1037,18 +1041,23 @@ function renderPC(side){
   var ps=side==='my'?myTeam.players:G.oppPlayers;
   var oc=side==='my'?G.myOC:G.oppOC;
 
-  // Copy OC indices into a plain new array
+  // Rank function matching sortPlayersByNumber: 0→-2, 00→-1, then 1,2,3...
+  function numRank(idx){
+    if(!ps[idx])return 9999;
+    var s=String(ps[idx].number).trim();
+    if(s==='0')return -2;
+    if(s==='00')return -1;
+    var n=parseInt(s,10);
+    return isNaN(n)?9999:n;
+  }
+
+  // Copy OC indices and sort
   var sorted=[];
   var i,j,tmp;
   for(i=0;i<oc.length;i++){sorted[i]=Number(oc[i])}
-
-  // Bubble sort by jersey number (simplest possible, no edge cases)
   for(i=0;i<sorted.length-1;i++){
     for(j=0;j<sorted.length-1-i;j++){
-      var nA=999,nB=999;
-      if(ps[sorted[j]])nA=Number(String(ps[sorted[j]].number).replace(/\D/g,''))||999;
-      if(ps[sorted[j+1]])nB=Number(String(ps[sorted[j+1]].number).replace(/\D/g,''))||999;
-      if(nA>nB){tmp=sorted[j];sorted[j]=sorted[j+1];sorted[j+1]=tmp}
+      if(numRank(sorted[j])>numRank(sorted[j+1])){tmp=sorted[j];sorted[j]=sorted[j+1];sorted[j+1]=tmp}
     }
   }
 
@@ -1066,13 +1075,9 @@ function renderPC(side){
     for(j=0;j<oc.length;j++){if(Number(oc[j])===i){isOnCourt=true;break}}
     if(!isOnCourt)bench.push(i);
   }
-  // Bubble sort bench too
   for(i=0;i<bench.length-1;i++){
     for(j=0;j<bench.length-1-i;j++){
-      var bA=999,bB=999;
-      if(ps[bench[j]])bA=Number(String(ps[bench[j]].number).replace(/\D/g,''))||999;
-      if(ps[bench[j+1]])bB=Number(String(ps[bench[j+1]].number).replace(/\D/g,''))||999;
-      if(bA>bB){tmp=bench[j];bench[j]=bench[j+1];bench[j+1]=tmp}
+      if(numRank(bench[j])>numRank(bench[j+1])){tmp=bench[j];bench[j]=bench[j+1];bench[j+1]=tmp}
     }
   }
 
@@ -1102,63 +1107,104 @@ function mkPB(p,idx,side,onCourt){
     if(selSide===side&&selId===idx){selId=null}else{selSide=side;selId=idx}
     renderPlayers();renderSC('my');renderSC('opp');
   });
-  // Long-press drag start
-  b.addEventListener('pointerdown',e=>{if(e.button!==0)return;_drd.startX=e.clientX;_drd.startY=e.clientY;_drd.srcSide=side;_drd.srcIdx=idx;_drd.srcOnCourt=onCourt;_drd.srcEl=b;_drd.didDrag=false;
-    _drd.timer=setTimeout(()=>{
+  // Long-press drag start — use touchstart so normal scroll works
+  b.addEventListener('touchstart',e=>{
+    if(e.touches.length!==1)return;
+    var t=e.touches[0];
+    _drd.startX=t.clientX;_drd.startY=t.clientY;_drd.srcSide=side;_drd.srcIdx=idx;_drd.srcOnCourt=onCourt;_drd.srcEl=b;_drd.didDrag=false;_drd.scrolled=false;
+    _drd.timer=setTimeout(function(){
       _drd.active=true;_drd.didDrag=true;b.classList.add('dragging');
-      // Disable native scroll on the pcol while dragging
+      // Disable native scroll on pcol
       var pcol=document.getElementById(side+'-pcol');
-      if(pcol)pcol.style.overflow='hidden';
-    },250);
+      if(pcol){pcol.style.overflow='hidden';pcol.style.touchAction='none'}
+      // Vibrate feedback if available
+      if(navigator.vibrate)navigator.vibrate(30);
+    },400);
+  },{passive:true});
+  b.addEventListener('touchmove',e=>{
+    if(!_drd.active&&_drd.timer){
+      // If moved before long-press fires, cancel drag — let scroll happen
+      var t=e.touches[0];
+      var dx=t.clientX-_drd.startX,dy=t.clientY-_drd.startY;
+      if(Math.abs(dx)>6||Math.abs(dy)>6){clearTimeout(_drd.timer);_drd.timer=null;_drd.scrolled=true}
+    }
+    if(!_drd.active)return;
+    // Prevent scroll while dragging
+    e.preventDefault();
+    var t=e.touches[0];
+    // Auto-scroll pcol
+    var pcol=document.getElementById(_drd.srcSide+'-pcol');
+    if(pcol){
+      var rect=pcol.getBoundingClientRect();
+      var edgeZone=45,scrollSpeed=8;
+      if(t.clientY<rect.top+edgeZone)pcol.scrollTop-=scrollSpeed;
+      else if(t.clientY>rect.bottom-edgeZone)pcol.scrollTop+=scrollSpeed;
+    }
+    // Highlight drop target
+    var el=document.elementFromPoint(t.clientX,t.clientY);
+    var tgt=el?el.closest('.pbtn'):null;
+    if(_drd.lastTarget&&_drd.lastTarget!==tgt)_drd.lastTarget.classList.remove('drop-target','drop-target-opp');
+    if(tgt&&tgt!==_drd.srcEl&&tgt.dataset.side===_drd.srcSide){
+      tgt.classList.add(_drd.srcSide==='opp'?'drop-target-opp':'drop-target');_drd.lastTarget=tgt;
+    }else{_drd.lastTarget=null}
+  },{passive:false});
+  b.addEventListener('touchend',e=>{
+    clearTimeout(_drd.timer);_drd.timer=null;
+    // Restore scroll
+    if(_drd.srcSide){
+      var pcol=document.getElementById(_drd.srcSide+'-pcol');
+      if(pcol){pcol.style.overflow='';pcol.style.touchAction=''}
+    }
+    if(!_drd.active)return;
+    _drd.active=false;
+    if(_drd.srcEl)_drd.srcEl.classList.remove('dragging');
+    if(_drd.lastTarget){_drd.lastTarget.classList.remove('drop-target','drop-target-opp');
+      var fSide=_drd.srcSide,fromIdx=_drd.srcIdx,toIdx=parseInt(_drd.lastTarget.dataset.idx);
+      var fromOn=_drd.srcOnCourt,toOn=_drd.lastTarget.dataset.oncourt==='1';
+      if(fSide&&fromIdx!==toIdx){
+        var oc=fSide==='my'?G.myOC:G.oppOC;
+        if(fromOn&&!toOn){var i=oc.indexOf(fromIdx);if(i>=0){oc[i]=toIdx;sortOC(fSide);save();renderPlayers()}}
+        else if(!fromOn&&toOn){var i=oc.indexOf(toIdx);if(i>=0){oc[i]=fromIdx;sortOC(fSide);save();renderPlayers()}}
+        else if(fromOn&&toOn){var iA=oc.indexOf(fromIdx),iB=oc.indexOf(toIdx);if(iA>=0&&iB>=0){oc[iA]=toIdx;oc[iB]=fromIdx;sortOC(fSide);save();renderPlayers()}}
+      }
+    }
+    _drd.lastTarget=null;
   });
   return b;
 }
 
 // Drag-and-drop substitution state
-const _drd={active:false,timer:null,srcSide:null,srcIdx:null,srcOnCourt:false,srcEl:null,startX:0,startY:0,didDrag:false,lastTarget:null,scrollTimer:null};
+const _drd={active:false,timer:null,srcSide:null,srcIdx:null,srcOnCourt:false,srcEl:null,startX:0,startY:0,didDrag:false,lastTarget:null,scrolled:false};
 
-document.addEventListener('pointermove',e=>{
-  if(_drd.timer&&!_drd.active){
-    const dx=e.clientX-_drd.startX,dy=e.clientY-_drd.startY;
-    if(Math.abs(dx)>12||Math.abs(dy)>12){clearTimeout(_drd.timer);_drd.timer=null}
-  }
-  if(!_drd.active)return;
+// Mouse-only drag support (touch is handled by touchstart/move/end on each pbtn)
+document.addEventListener('mousemove',e=>{
+  if(!_drd.active||e.sourceCapabilities&&e.sourceCapabilities.firesTouchEvents)return;
   e.preventDefault();
-  // Find the pcol container for this side
-  const pcol=document.getElementById(_drd.srcSide+'-pcol');
+  var pcol=document.getElementById(_drd.srcSide+'-pcol');
   if(pcol){
-    const rect=pcol.getBoundingClientRect();
-    const edgeZone=40; // px from edge to trigger scroll
-    const scrollSpeed=6;
-    if(e.clientY<rect.top+edgeZone){
-      // Near top — scroll up
-      pcol.scrollTop-=scrollSpeed;
-    }else if(e.clientY>rect.bottom-edgeZone){
-      // Near bottom — scroll down
-      pcol.scrollTop+=scrollSpeed;
-    }
+    var rect=pcol.getBoundingClientRect();
+    var edgeZone=40,scrollSpeed=6;
+    if(e.clientY<rect.top+edgeZone)pcol.scrollTop-=scrollSpeed;
+    else if(e.clientY>rect.bottom-edgeZone)pcol.scrollTop+=scrollSpeed;
   }
-  // Highlight drop target
-  const el=document.elementFromPoint(e.clientX,e.clientY);
-  const tgt=el?el.closest('.pbtn'):null;
-  if(_drd.lastTarget&&_drd.lastTarget!==tgt){_drd.lastTarget.classList.remove('drop-target','drop-target-opp')}
+  var el=document.elementFromPoint(e.clientX,e.clientY);
+  var tgt=el?el.closest('.pbtn'):null;
+  if(_drd.lastTarget&&_drd.lastTarget!==tgt)_drd.lastTarget.classList.remove('drop-target','drop-target-opp');
   if(tgt&&tgt!==_drd.srcEl&&tgt.dataset.side===_drd.srcSide){
     tgt.classList.add(_drd.srcSide==='opp'?'drop-target-opp':'drop-target');_drd.lastTarget=tgt;
   }else{_drd.lastTarget=null}
 });
 
-document.addEventListener('pointerup',e=>{
+document.addEventListener('mouseup',e=>{
   clearTimeout(_drd.timer);_drd.timer=null;
-  // Restore scroll on pcol
   if(_drd.srcSide){
     var pcol=document.getElementById(_drd.srcSide+'-pcol');
-    if(pcol)pcol.style.overflow='';
+    if(pcol){pcol.style.overflow='';pcol.style.touchAction=''}
   }
   if(!_drd.active){_drd.active=false;return}
   _drd.active=false;
   if(_drd.srcEl)_drd.srcEl.classList.remove('dragging');
   if(_drd.lastTarget){_drd.lastTarget.classList.remove('drop-target','drop-target-opp');
-    // Execute substitution
     const side=_drd.srcSide;
     const fromIdx=_drd.srcIdx;
     const toIdx=parseInt(_drd.lastTarget.dataset.idx);
@@ -1167,17 +1213,13 @@ document.addEventListener('pointerup',e=>{
     if(side&&fromIdx!==toIdx){
       const oc=side==='my'?G.myOC:G.oppOC;
       if(fromOn&&!toOn){
-        // On court → Bench: swap
         const i=oc.indexOf(fromIdx);if(i>=0){oc[i]=toIdx;sortOC(side);save();renderPlayers()}
       }else if(!fromOn&&toOn){
-        // Bench → On court: swap
         const i=oc.indexOf(toIdx);if(i>=0){oc[i]=fromIdx;sortOC(side);save();renderPlayers()}
       }else if(fromOn&&toOn){
-        // Both on court: swap positions in OC array
         const iA=oc.indexOf(fromIdx),iB=oc.indexOf(toIdx);
         if(iA>=0&&iB>=0){oc[iA]=toIdx;oc[iB]=fromIdx;sortOC(side);save();renderPlayers()}
       }
-      // Both bench: no action needed
     }
   }
   _drd.lastTarget=null;
