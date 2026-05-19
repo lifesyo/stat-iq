@@ -323,6 +323,9 @@ function load(){try{let t=localStorage.getItem('siq_t');if(t)myTeam=JSON.parse(t
   // Migration: ensure all players have IDs
   let needSave=false;
   [myTeam].concat(myTeams).forEach(t=>{if(t&&t.players)t.players.forEach(p=>{if(!p.id){p.id=uid();needSave=true}})});
+  // Sort all team players by jersey number
+  [myTeam].concat(myTeams).forEach(t=>{if(t&&t.players&&t.players.length)sortPlayersByNumber(t.players)});
+  needSave=true;
   if(needSave)save();
   // Migration: recalculate zone/is3pt/st for all shot events (fixes coordinate mismatch)
   migrateZones();
