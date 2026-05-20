@@ -1689,7 +1689,7 @@ function renderCareer(){
   h+=`</div>`;
 
   // ===== PLAYER GROWTH CHART =====
-  h+=`<div style="font-family:var(--fd);font-size:14px;color:var(--acc);margin:24px 0 10px;border-bottom:1px solid var(--brd);padding-bottom:4px">選手 成長グラフ（3ヶ月平均）</div>`;
+  h+=`<div style="font-family:var(--fd);font-size:14px;color:var(--acc);margin:24px 0 10px;border-bottom:1px solid var(--brd);padding-bottom:4px">選手 成長グラフ</div>`;
   h+=`<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px" id="growth-player-btns"></div>`;
   h+=`<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:10px" id="growth-stat-btns"></div>`;
   h+=`<div id="growth-chart-area" style="min-height:60px"></div>`;
@@ -1776,8 +1776,10 @@ function drawGrowth(sortedGames,pStats,gpEl,gsEl,gcEl,statOpts){
   });
   if(!gData.length){gcEl.innerHTML='<div style="text-align:center;padding:30px;color:var(--t3);font-size:12px">データなし</div>';return}
 
-  // Group by 3-month quarter
   var isPercent=statKey==='fgp'||statKey==='tpp'||statKey==='ftp';
+  var statLabel=(statOpts.find(function(s){return s.key===statKey})||{}).label||statKey;
+
+  // Group by 3-month quarter
   var qMap={},qOrder=[];
   gData.forEach(function(d){
     var p=d.date.split('-'),y=p[0],m=parseInt(p[1]||'1',10),q=Math.ceil(m/3);
@@ -1785,6 +1787,7 @@ function drawGrowth(sortedGames,pStats,gpEl,gsEl,gcEl,statOpts){
     if(!qMap[k]){qMap[k]=[];qOrder.push(k)}
     qMap[k].push(d);
   });
+
   var points=[];
   qOrder.forEach(function(k){
     var items=qMap[k],val;
@@ -1804,23 +1807,26 @@ function drawGrowth(sortedGames,pStats,gpEl,gsEl,gcEl,statOpts){
   });
   if(!points.length){gcEl.innerHTML='<div style="text-align:center;padding:30px;color:var(--t3);font-size:12px">データなし</div>';return}
 
-  var statLabel=(statOpts.find(function(s){return s.key===statKey})||{}).label||statKey;
   var vals=points.map(function(p){return p.val});
+  var n=points.length;
+  var totalGames=gData.length;
   var maxV=Math.max.apply(null,vals),minV=Math.min.apply(null,vals);
   if(maxV===minV){maxV+=isPercent?10:3;minV=Math.max(0,minV-1)}
   if(minV>0&&!isPercent)minV=0;
   var range=maxV-minV||1;
-  var n=points.length;
 
-  // SVG chart
-  var svgW=Math.max(n*90,200),svgH=150;
-  var pL=8,pR=8,pT=24,pB=34,gW=svgW-pL-pR,gH=svgH-pT-pB;
+  // SVG — generous padding to prevent clipping
+  var svgW=Math.max(n*100,220),svgH=160;
+  var pL=32,pR=32,pT=28,pB=40;
+  var gW=svgW-pL-pR,gH=svgH-pT-pB;
+
   var pts=[];
   for(var i=0;i<n;i++){
     var x=pL+(n>1?(i/(n-1))*gW:gW/2);
     var y=pT+gH-((vals[i]-minV)/range)*gH;
     pts.push({x:x,y:y});
   }
+
   var svg='<svg width="100%" viewBox="0 0 '+svgW+' '+svgH+'" style="display:block">';
   // Area
   var ap='M'+pts[0].x+','+pts[0].y;
@@ -1828,23 +1834,33 @@ function drawGrowth(sortedGames,pStats,gpEl,gsEl,gcEl,statOpts){
   ap+=' L'+pts[n-1].x+','+(pT+gH)+' L'+pts[0].x+','+(pT+gH)+' Z';
   svg+='<path d="'+ap+'" fill="rgba(0,201,120,.08)"/>';
   // Line
-  var lp='M'+pts[0].x+','+pts[0].y;
-  for(var i=1;i<n;i++)lp+=' L'+pts[i].x+','+pts[i].y;
-  svg+='<path d="'+lp+'" fill="none" stroke="#00c978" stroke-width="2.5" stroke-linejoin="round"/>';
+  var lnp='M'+pts[0].x+','+pts[0].y;
+  for(var i=1;i<n;i++)lnp+=' L'+pts[i].x+','+pts[i].y;
+  svg+='<path d="'+lnp+'" fill="none" stroke="#00c978" stroke-width="2" stroke-linejoin="round"/>';
   // Dots + values + x labels
   for(var i=0;i<n;i++){
     svg+='<circle cx="'+pts[i].x+'" cy="'+pts[i].y+'" r="4" fill="#00c978"/>';
     svg+='<circle cx="'+pts[i].x+'" cy="'+pts[i].y+'" r="1.5" fill="#0b0f14"/>';
     var vStr=isPercent?vals[i]+'%':vals[i];
-    svg+='<text x="'+pts[i].x+'" y="'+(pts[i].y-8)+'" fill="#e4e8ef" font-family="Oswald,sans-serif" font-size="13" font-weight="700" text-anchor="middle">'+vStr+'</text>';
-    svg+='<text x="'+pts[i].x+'" y="'+(pT+gH+12)+'" fill="#8a95a8" font-size="9" text-anchor="middle">'+points[i].label+'</text>';
-    svg+='<text x="'+pts[i].x+'" y="'+(pT+gH+22)+'" fill="#556070" font-size="7" text-anchor="middle">'+points[i].games+'試合</text>';
+    // Adjust anchor at edges to prevent clipping
+    var anchor='middle';
+    if(n>1&&i===0)anchor='start';
+    if(n>1&&i===n-1)anchor='end';
+    svg+='<text x="'+pts[i].x+'" y="'+(pts[i].y-9)+'" fill="#e4e8ef" font-family="Oswald,sans-serif" font-size="12" font-weight="700" text-anchor="'+anchor+'">'+vStr+'</text>';
+    svg+='<text x="'+pts[i].x+'" y="'+(pT+gH+13)+'" fill="#8a95a8" font-size="8" text-anchor="'+anchor+'">'+points[i].label+'</text>';
+    svg+='<text x="'+pts[i].x+'" y="'+(pT+gH+24)+'" fill="#556070" font-size="7" text-anchor="'+anchor+'">'+points[i].games+'試合</text>';
   }
   svg+='</svg>';
 
+  var avgVal=vals.reduce(function(a,b){return a+b},0)/n;
+  var avgStr=isPercent?avgVal.toFixed(0)+'%':avgVal.toFixed(1);
+
   gcEl.innerHTML='<div style="background:var(--bg2);border:1px solid var(--brd);border-radius:10px;padding:12px">'
-    +'<div style="font-family:var(--fd);font-size:14px;font-weight:700;color:var(--t1);margin-bottom:8px">#'+pInfo.number+' '+pInfo.name
+    +'<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px">'
+    +'<div style="font-family:var(--fd);font-size:14px;font-weight:700;color:var(--t1)">#'+pInfo.number+' '+pInfo.name
     +' <span style="color:var(--acc);font-size:12px">'+statLabel+'</span></div>'
+    +'<div style="font-size:11px;color:var(--t2)">'+totalGames+'試合 / Avg <strong style="color:var(--t1)">'+avgStr+'</strong></div>'
+    +'</div>'
     +'<div style="overflow-x:auto">'+svg+'</div></div>';
 }
 
