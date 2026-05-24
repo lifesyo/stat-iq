@@ -329,6 +329,20 @@ function load(){try{let t=localStorage.getItem('siq_t');if(t)myTeam=JSON.parse(t
   if(needSave)save();
   // Migration: recalculate zone/is3pt/st for all shot events (fixes coordinate mismatch)
   migrateZones();
+  // Default opponent team with 0, 00, 1-99
+  if(!oppTeams.length){
+    var defPlayers=[];
+    var abc='abcdefghijklmnopqrstuvwxyz';
+    defPlayers.push({number:'0',name:'a',id:uid()});
+    defPlayers.push({number:'00',name:'b',id:uid()});
+    for(var di=1;di<=99;di++){
+      var ci=di+1; // offset by 2 since 0,00 took a,b
+      var nm=ci<26?abc[ci]:abc[Math.floor(ci/26)-1]+(abc[ci%26]||'a');
+      defPlayers.push({number:String(di),name:nm,id:uid()});
+    }
+    oppTeams.push({name:'対戦相手',players:defPlayers});
+    save();
+  }
 }
 function migrateZones(){
   let changed=false;
