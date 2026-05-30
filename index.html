@@ -174,6 +174,9 @@ input,select{font-family:inherit;outline:none;-webkit-user-select:text;user-sele
 .elog-item .elog-del{font-size:12px;color:var(--red);opacity:0;padding:2px 5px;border-radius:4px;transition:var(--tr);cursor:pointer}
 .elog-item:hover .elog-del{opacity:1}
 .elog-item .elog-del:hover{background:var(--redbg)}
+.elog-qmove{font-size:9px;padding:2px 4px;border-radius:3px;background:var(--bg3);border:1px solid var(--brd);color:var(--t2);cursor:pointer;opacity:0;transition:var(--tr);font-weight:600}
+.elog-item:hover .elog-qmove{opacity:1}
+.elog-qmove:hover{border-color:var(--acc);color:var(--acc);background:var(--accbg)}
 
 /* Pending action state — yellow border on player buttons when waiting for player selection */
 .pbtn.awaiting{border-color:#ffd600;background:rgba(255,214,0,.08);box-shadow:0 0 8px rgba(255,214,0,.25)}
@@ -226,6 +229,13 @@ input,select{font-family:inherit;outline:none;-webkit-user-select:text;user-sele
 </div>
 <div class="elo" id="elo-panel">
   <div class="elog-hdr"><span>履歴ログ <span id="elog-count" style="color:var(--acc)">0</span></span><button class="elog-close" onclick="toggleLog()">✕</button></div>
+  <div id="elog-bulk" style="padding:6px 8px;border-bottom:1px solid var(--brd);display:flex;align-items:center;gap:4px;flex-wrap:wrap">
+    <span style="font-size:9px;color:var(--t3);font-weight:700">一括移動</span>
+    <select id="elog-from" style="font-size:10px;padding:3px 6px;border-radius:4px;background:var(--bg3);color:var(--t1);border:1px solid var(--brd)"></select>
+    <span style="font-size:10px;color:var(--t3)">→</span>
+    <select id="elog-to" style="font-size:10px;padding:3px 6px;border-radius:4px;background:var(--bg3);color:var(--t1);border:1px solid var(--brd)"></select>
+    <button onclick="bulkMoveQ()" style="font-size:10px;padding:3px 10px;border-radius:4px;background:var(--accbg);color:var(--acc);border:1px solid var(--acc);font-weight:700;cursor:pointer">移動</button>
+  </div>
   <div class="elog-list" id="elog-list"></div>
 </div>
 <div class="spop" id="sp-my"><button class="spb made" onclick="recShot('my',true)">○ 成功</button><button class="spb miss" onclick="recShot('my',false)">× 失敗</button><button class="spb cnc" onclick="canShot('my')">取消</button></div>
@@ -1080,6 +1090,42 @@ function deleteEvent(evId){
   save();drawCourt('my');drawCourt('opp');updateAll();
 }
 
+// Move single event to a different quarter
+function moveEventQ(evId,toQ){
+  if(!G||toQ<0||toQ>=G.quarters)return;
+  var ev=G.events.find(function(e){return e.id===evId});
+  if(!ev||ev.q===toQ)return;
+  var fromQ=ev.q;
+  // Move score
+  var qs=ev.side==='my'?G.myQS:G.oppQS;
+  var pts=0;
+  if(ev.type==='SHOT'&&ev.made&&ev.pts)pts=ev.pts;
+  if(ev.type==='FT_MADE')pts=1;
+  if(pts){qs[fromQ]-=pts;qs[toQ]+=pts}
+  ev.q=toQ;
+  save();updateAll();
+}
+
+// Bulk move all events from one quarter to another
+function bulkMoveQ(){
+  if(!G)return;
+  var fromQ=parseInt(document.getElementById('elog-from').value);
+  var toQ=parseInt(document.getElementById('elog-to').value);
+  if(isNaN(fromQ)||isNaN(toQ)||fromQ===toQ)return;
+  if(!confirm('Q'+(fromQ+1)+'の全記録をQ'+(toQ+1)+'に移動しますか？'))return;
+  var targets=G.events.filter(function(e){return e.q===fromQ});
+  if(!targets.length){alert('Q'+(fromQ+1)+'に記録がありません');return}
+  targets.forEach(function(ev){
+    var qs=ev.side==='my'?G.myQS:G.oppQS;
+    var pts=0;
+    if(ev.type==='SHOT'&&ev.made&&ev.pts)pts=ev.pts;
+    if(ev.type==='FT_MADE')pts=1;
+    if(pts){qs[fromQ]-=pts;qs[toQ]+=pts}
+    ev.q=toQ;
+  });
+  save();updateAll();
+}
+
 function prevQ(){if(!G||G.cq<=0)return;G.cq--;save();updateQUI()}
 function nextQ(){if(!G||G.cq>=G.quarters-1)return;G.cq++;save();updateQUI()}
 function rotateCourt(side){courtRotation[side]=(courtRotation[side]+90)%360;drawCourt(side)}
@@ -1365,6 +1411,13 @@ function renderEventLog(){
   const list=document.getElementById('elog-list');
   const countEl=document.getElementById('elog-count');
   if(!list)return;
+  // Populate bulk move selects
+  var fromSel=document.getElementById('elog-from'),toSel=document.getElementById('elog-to');
+  if(fromSel&&toSel){
+    var opts='';for(var qi=0;qi<G.quarters;qi++)opts+='<option value="'+qi+'">Q'+(qi+1)+'</option>';
+    fromSel.innerHTML=opts;toSel.innerHTML=opts;
+    if(G.quarters>1)toSel.value='1';
+  }
   const evts=G.events.slice().reverse(); // newest first
   countEl.textContent=evts.length;
   if(!evts.length){list.innerHTML='<div style="text-align:center;padding:20px;color:var(--t3);font-size:11px">まだ記録がありません</div>';return}
@@ -1381,8 +1434,13 @@ function renderEventLog(){
     else if(ev.type==='FT_MISS') actTxt='FT ×';
     else actTxt=ev.type;
     const ptsTxt=ev.pts?` +${ev.pts}`:'';
+    // Q move buttons
+    var qBtns='';
+    if(ev.q>0) qBtns+=`<span class="elog-qmove" onclick="event.stopPropagation();moveEventQ('${ev.id}',${ev.q-1})" title="Q${ev.q}へ移動">◀</span>`;
+    if(ev.q<G.quarters-1) qBtns+=`<span class="elog-qmove" onclick="event.stopPropagation();moveEventQ('${ev.id}',${ev.q+1})" title="Q${ev.q+2}へ移動">▶</span>`;
     h+=`<div class="elog-item">
       <span class="elog-q">Q${ev.q+1}</span>
+      ${qBtns}
       <span class="elog-pn" style="color:${sideColor}">${pNum}</span>
       <span class="elog-act">${actTxt}${ptsTxt}</span>
       <span class="elog-del" onclick="event.stopPropagation();deleteEvent('${ev.id}')">✕</span>
