@@ -177,6 +177,10 @@ input,select{font-family:inherit;outline:none;-webkit-user-select:text;user-sele
 .elog-qmove{font-size:9px;padding:2px 4px;border-radius:3px;background:var(--bg3);border:1px solid var(--brd);color:var(--t2);cursor:pointer;opacity:0;transition:var(--tr);font-weight:600}
 .elog-item:hover .elog-qmove{opacity:1}
 .elog-qmove:hover{border-color:var(--acc);color:var(--acc);background:var(--accbg)}
+.elog-cb{width:14px;height:14px;accent-color:var(--acc);cursor:pointer;flex-shrink:0;display:none}
+.elog-selecting .elog-cb{display:block}
+.elog-selecting .elog-qmove,.elog-selecting .elog-del{display:none!important}
+.elog-score{font-size:9px;color:var(--t3);font-family:var(--fd);font-weight:600;min-width:36px;text-align:center}
 
 /* Pending action state — yellow border on player buttons when waiting for player selection */
 .pbtn.awaiting{border-color:#ffd600;background:rgba(255,214,0,.08);box-shadow:0 0 8px rgba(255,214,0,.25)}
@@ -230,11 +234,13 @@ input,select{font-family:inherit;outline:none;-webkit-user-select:text;user-sele
 <div class="elo" id="elo-panel">
   <div class="elog-hdr"><span>履歴ログ <span id="elog-count" style="color:var(--acc)">0</span></span><button class="elog-close" onclick="toggleLog()">✕</button></div>
   <div id="elog-bulk" style="padding:6px 8px;border-bottom:1px solid var(--brd);display:flex;align-items:center;gap:4px;flex-wrap:wrap">
-    <span style="font-size:9px;color:var(--t3);font-weight:700">一括移動</span>
-    <select id="elog-from" style="font-size:10px;padding:3px 6px;border-radius:4px;background:var(--bg3);color:var(--t1);border:1px solid var(--brd)"></select>
-    <span style="font-size:10px;color:var(--t3)">→</span>
-    <select id="elog-to" style="font-size:10px;padding:3px 6px;border-radius:4px;background:var(--bg3);color:var(--t1);border:1px solid var(--brd)"></select>
-    <button onclick="bulkMoveQ()" style="font-size:10px;padding:3px 10px;border-radius:4px;background:var(--accbg);color:var(--acc);border:1px solid var(--acc);font-weight:700;cursor:pointer">移動</button>
+    <button onclick="toggleLogSelect()" id="elog-sel-btn" style="font-size:9px;padding:3px 8px;border-radius:4px;background:var(--bg3);color:var(--t2);border:1px solid var(--brd);font-weight:700;cursor:pointer">選択</button>
+    <span id="elog-sel-area" style="display:none;display:none;align-items:center;gap:4px">
+      <button onclick="logSelectAll()" style="font-size:9px;padding:3px 6px;border-radius:4px;background:var(--bg3);color:var(--t2);border:1px solid var(--brd);cursor:pointer">全選択</button>
+      <span style="font-size:9px;color:var(--t3)">→</span>
+      <select id="elog-to" style="font-size:10px;padding:3px 6px;border-radius:4px;background:var(--bg3);color:var(--t1);border:1px solid var(--brd)"></select>
+      <button onclick="bulkMoveSelected()" style="font-size:10px;padding:3px 10px;border-radius:4px;background:var(--accbg);color:var(--acc);border:1px solid var(--acc);font-weight:700;cursor:pointer">移動</button>
+    </span>
   </div>
   <div class="elog-list" id="elog-list"></div>
 </div>
@@ -1106,16 +1112,48 @@ function moveEventQ(evId,toQ){
   save();updateAll();
 }
 
-// Bulk move all events from one quarter to another
-function bulkMoveQ(){
+// Toggle log selection mode
+function toggleLogSelect(){
+  var list=document.getElementById('elog-list');
+  var area=document.getElementById('elog-sel-area');
+  var btn=document.getElementById('elog-sel-btn');
+  if(!list)return;
+  var on=list.classList.toggle('elog-selecting');
+  area.style.display=on?'flex':'none';
+  btn.textContent=on?'取消':'選択';
+  btn.style.background=on?'var(--redbg)':'var(--bg3)';
+  btn.style.color=on?'var(--red)':'var(--t2)';
+  btn.style.borderColor=on?'var(--red)':'var(--brd)';
+  if(!on){
+    // Uncheck all
+    list.querySelectorAll('.elog-cb').forEach(function(cb){cb.checked=false});
+  }
+}
+
+// Select/deselect all checkboxes
+function logSelectAll(){
+  var list=document.getElementById('elog-list');
+  if(!list)return;
+  var cbs=list.querySelectorAll('.elog-cb');
+  var allChecked=true;
+  cbs.forEach(function(cb){if(!cb.checked)allChecked=false});
+  cbs.forEach(function(cb){cb.checked=!allChecked});
+}
+
+// Move selected events to target quarter
+function bulkMoveSelected(){
   if(!G)return;
-  var fromQ=parseInt(document.getElementById('elog-from').value);
   var toQ=parseInt(document.getElementById('elog-to').value);
-  if(isNaN(fromQ)||isNaN(toQ)||fromQ===toQ)return;
-  if(!confirm('Q'+(fromQ+1)+'の全記録をQ'+(toQ+1)+'に移動しますか？'))return;
-  var targets=G.events.filter(function(e){return e.q===fromQ});
-  if(!targets.length){alert('Q'+(fromQ+1)+'に記録がありません');return}
-  targets.forEach(function(ev){
+  if(isNaN(toQ))return;
+  var list=document.getElementById('elog-list');
+  var ids=[];
+  list.querySelectorAll('.elog-cb:checked').forEach(function(cb){ids.push(cb.dataset.evid)});
+  if(!ids.length){alert('ログを選択してください');return}
+  if(!confirm(ids.length+'件をQ'+(toQ+1)+'に移動しますか？'))return;
+  ids.forEach(function(evId){
+    var ev=G.events.find(function(e){return e.id===evId});
+    if(!ev||ev.q===toQ)return;
+    var fromQ=ev.q;
     var qs=ev.side==='my'?G.myQS:G.oppQS;
     var pts=0;
     if(ev.type==='SHOT'&&ev.made&&ev.pts)pts=ev.pts;
@@ -1124,6 +1162,8 @@ function bulkMoveQ(){
     ev.q=toQ;
   });
   save();updateAll();
+  // Exit select mode
+  toggleLogSelect();
 }
 
 function prevQ(){if(!G||G.cq<=0)return;G.cq--;save();updateQUI()}
@@ -1411,16 +1451,29 @@ function renderEventLog(){
   const list=document.getElementById('elog-list');
   const countEl=document.getElementById('elog-count');
   if(!list)return;
-  // Populate bulk move selects
-  var fromSel=document.getElementById('elog-from'),toSel=document.getElementById('elog-to');
-  if(fromSel&&toSel){
+  // Populate move-to select
+  var toSel=document.getElementById('elog-to');
+  if(toSel){
     var opts='';for(var qi=0;qi<G.quarters;qi++)opts+='<option value="'+qi+'">Q'+(qi+1)+'</option>';
-    fromSel.innerHTML=opts;toSel.innerHTML=opts;
-    if(G.quarters>1)toSel.value='1';
+    toSel.innerHTML=opts;
   }
+  // Calculate running score for each event (chronological)
+  var scoreMap={};
+  var runMy=0,runOpp=0;
+  G.events.forEach(function(ev){
+    var pts=0;
+    if(ev.type==='SHOT'&&ev.made&&ev.pts)pts=ev.pts;
+    if(ev.type==='FT_MADE')pts=1;
+    if(pts){
+      if(ev.side==='my')runMy+=pts; else runOpp+=pts;
+      scoreMap[ev.id]=runMy+'-'+runOpp;
+    }
+  });
+
   const evts=G.events.slice().reverse(); // newest first
   countEl.textContent=evts.length;
   if(!evts.length){list.innerHTML='<div style="text-align:center;padding:20px;color:var(--t3);font-size:11px">まだ記録がありません</div>';return}
+  var isSelecting=list.classList.contains('elog-selecting');
   let h='';
   evts.forEach(ev=>{
     const ps=ev.side==='my'?myTeam.players:G.oppPlayers;
@@ -1434,19 +1487,24 @@ function renderEventLog(){
     else if(ev.type==='FT_MISS') actTxt='FT ×';
     else actTxt=ev.type;
     const ptsTxt=ev.pts?` +${ev.pts}`:'';
+    // Score at this point
+    var scoreTxt=scoreMap[ev.id]?'<span class="elog-score">'+scoreMap[ev.id]+'</span>':'';
     // Q move buttons
     var qBtns='';
-    if(ev.q>0) qBtns+=`<span class="elog-qmove" onclick="event.stopPropagation();moveEventQ('${ev.id}',${ev.q-1})" title="Q${ev.q}へ移動">◀</span>`;
-    if(ev.q<G.quarters-1) qBtns+=`<span class="elog-qmove" onclick="event.stopPropagation();moveEventQ('${ev.id}',${ev.q+1})" title="Q${ev.q+2}へ移動">▶</span>`;
+    if(ev.q>0) qBtns+=`<span class="elog-qmove" onclick="event.stopPropagation();moveEventQ('${ev.id}',${ev.q-1})" title="Q${ev.q}へ">◀</span>`;
+    if(ev.q<G.quarters-1) qBtns+=`<span class="elog-qmove" onclick="event.stopPropagation();moveEventQ('${ev.id}',${ev.q+1})" title="Q${ev.q+2}へ">▶</span>`;
     h+=`<div class="elog-item">
+      <input type="checkbox" class="elog-cb" data-evid="${ev.id}">
       <span class="elog-q">Q${ev.q+1}</span>
       ${qBtns}
       <span class="elog-pn" style="color:${sideColor}">${pNum}</span>
       <span class="elog-act">${actTxt}${ptsTxt}</span>
+      ${scoreTxt}
       <span class="elog-del" onclick="event.stopPropagation();deleteEvent('${ev.id}')">✕</span>
     </div>`;
   });
   list.innerHTML=h;
+  if(isSelecting)list.classList.add('elog-selecting');
 }
 
 function updateAll(){if(!G)return;
