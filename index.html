@@ -729,8 +729,8 @@ function drawZoneChart(w,h,shots,flip){
   ctx.fillStyle=grd;ctx.fillRect(oX,oY,tW,tH);
   for(let x2=oX;x2<oX+tW;x2+=10){const s2=(Math.floor((x2-oX)/10)%2===0)?0.03:-0.02;ctx.fillStyle=s2>0?`rgba(0,0,0,${s2})`:`rgba(255,255,255,${-s2})`;ctx.fillRect(x2,oY,10,tH)}
 
-  // ── Zone stats ──
-  const zs={};ZONES.forEach(z=>{const a=shots.filter(e=>getZone(e.x,e.y)===z),m=a.filter(e=>e.made).length;zs[z]={made:m,total:a.length,pct:a.length?Math.round(m/a.length*100):0}});
+  // ── Zone stats (use getDisplayZone to match visual boundaries) ──
+  const zs={};ZONES.forEach(z=>{const a=shots.filter(e=>getDisplayZone(e.x,e.y)===z),m=a.filter(e=>e.made).length;zs[z]={made:m,total:a.length,pct:a.length?Math.round(m/a.length*100):0}});
   function zColor(z){
     const s=zs[z];if(!s||!s.total)return null;
     const a=0.15+s.pct/100*0.45;
@@ -946,8 +946,29 @@ function getZone(mx,my){
   if(mx>pR) return 'MTR';
   return 'MT';
 }
-// Display zone is now identical to getZone
-function getDisplayZone(mx,my){return getZone(mx,my)}
+// Display zone uses exact 3P boundary (matches drawn court lines)
+function getDisplayZone(mx,my){
+  var pL=5.05,pR=9.95,ftY=4.775,pmY=ftY/2;
+  if(mx>=pL&&mx<=pR&&my<=ftY){
+    return my<=pmY?(mx<7.5?'PBL':'PBR'):(mx<7.5?'PTL':'PTR');
+  }
+  // Exact 3P boundary for display (0.9 = actual corner line)
+  var three;
+  if(mx<0.9||mx>14.1) three=true;
+  else{var dx=mx-7.5,dy=my-0.55;three=Math.sqrt(dx*dx+dy*dy)>=6.75}
+  if(my<=ftY){
+    if(three) return mx<7.5?'3CL':'3CR';
+    return mx<7.5?'MBL':'MBR';
+  }
+  if(three){
+    if(mx<pL) return '3WL';
+    if(mx>pR) return '3WR';
+    return '3T';
+  }
+  if(mx<pL) return 'MTL';
+  if(mx>pR) return 'MTR';
+  return 'MT';
+}
 
 // Court click — stores shot location, then waits for player selection
 ['my','opp'].forEach(side=>{document.getElementById('cv-'+side).addEventListener('click',function(e){
