@@ -2044,7 +2044,7 @@ function drawGrowth(sortedGames,pStats,gpEl,gsEl,gcEl,statOpts){
 }
 
 function buildCareerTable(pStats,isAvg){
-  const cols=['選手','GP','PTS','2P','2P%','3P','3P%','FG','FG%','FT','FT%','REB','AST','STL','BLK','TO','PF','EFF',''];
+  const cols=['選手','GP','PTS','2P','2P%','3P','3P%','FG','FG%','FT','FT%','REB','AST','STL','BLK','TO','PF','EFF'];
   let h=`<div style="overflow-x:auto;margin-bottom:12px"><table class="bt"><thead><tr>`;
   cols.forEach(c=>{h+=`<th>${c}</th>`});
   h+=`</tr></thead><tbody>`;
@@ -2054,8 +2054,7 @@ function buildCareerTable(pStats,isAvg){
     const fgp=p.fga?Math.round(p.fgm/p.fga*100):0,tpp=p.tpa?Math.round(p.tpm/p.tpa*100):0;
     const ftp=p.fta?Math.round(p.ftm/p.fta*100):0;
     const twop=p.twoa?Math.round(p.twom/p.twoa*100):0;
-    const pKey=p.id||(p.number+'_'+p.name);
-    h+=`<tr><td>#${p.number} ${p.name}</td><td>${p.gp}</td><td class="${p.pts>=10?'hi':''}">${d(p.pts)}</td><td>${isAvg?d(p.twom)+'/'+d(p.twoa):`${p.twom}/${p.twoa}`}</td><td>${twop}%</td><td>${isAvg?d(p.tpm)+'/'+d(p.tpa):`${p.tpm}/${p.tpa}`}</td><td>${tpp}%</td><td>${isAvg?d(p.fgm)+'/'+d(p.fga):`${p.fgm}/${p.fga}`}</td><td>${fgp}%</td><td>${isAvg?d(p.ftm)+'/'+d(p.fta):`${p.ftm}/${p.fta}`}</td><td>${ftp}%</td><td>${d(p.reb)}</td><td>${d(p.ast)}</td><td>${d(p.stl)}</td><td>${d(p.blk)}</td><td>${d(p.to)}</td><td>${d(p.pf)}</td><td style="font-weight:700">${d(p.eff)}</td><td><button onclick="aiAnalyzePlayer('${pKey}')" style="padding:4px 8px;border-radius:5px;background:var(--accbg);border:1px solid var(--acc);color:var(--acc);font-size:10px;font-weight:700;cursor:pointer;white-space:nowrap;font-family:var(--fb)">🤖 AI</button></td></tr>`;
+    h+=`<tr><td>#${p.number} ${p.name}</td><td>${p.gp}</td><td class="${p.pts>=10?'hi':''}">${d(p.pts)}</td><td>${isAvg?d(p.twom)+'/'+d(p.twoa):`${p.twom}/${p.twoa}`}</td><td>${twop}%</td><td>${isAvg?d(p.tpm)+'/'+d(p.tpa):`${p.tpm}/${p.tpa}`}</td><td>${tpp}%</td><td>${isAvg?d(p.fgm)+'/'+d(p.fga):`${p.fgm}/${p.fga}`}</td><td>${fgp}%</td><td>${isAvg?d(p.ftm)+'/'+d(p.fta):`${p.ftm}/${p.fta}`}</td><td>${ftp}%</td><td>${d(p.reb)}</td><td>${d(p.ast)}</td><td>${d(p.stl)}</td><td>${d(p.blk)}</td><td>${d(p.to)}</td><td>${d(p.pf)}</td><td style="font-weight:700">${d(p.eff)}</td></tr>`;
   });
   h+=`</tbody></table></div>`;
   return h;
@@ -2076,7 +2075,7 @@ function renderHist(){const l=document.getElementById('hlist');
   if(!filtered.length){l.innerHTML='<div class="empty">'+( myTeam.name||'このチーム')+'の試合データはありません</div>';return}l.innerHTML='';
   filtered.slice().sort((a,b)=>(b.date||'').localeCompare(a.date||'')).forEach(g=>{const d=document.createElement('div');d.className='ghi';
     const gn=g.gameName?`<div style="font-size:10px;color:var(--t3);margin-top:1px">${g.gameName}</div>`:'';
-    d.innerHTML=`<div class="ghi-d">${g.date}</div><div class="ghi-t"><div>${g.myTeamName||myTeam.name||'MY'} vs ${g.opponent}</div>${gn}</div><div class="ghi-s">${g.myScore} - ${g.oppScore}</div><button class="ghi-x" style="opacity:1;background:var(--accbg);color:var(--acc);border-color:var(--acc)" onclick="event.stopPropagation();aiAnalyzeGame('${g.id}')">🤖</button><button class="ghi-x" style="opacity:1;background:var(--bluebg);color:var(--blue)" onclick="editGameInfo('${g.id}',event)">編集</button><button class="ghi-x" onclick="delG('${g.id}',event)">削除</button>`;
+    d.innerHTML=`<div class="ghi-d">${g.date}</div><div class="ghi-t"><div>${g.myTeamName||myTeam.name||'MY'} vs ${g.opponent}</div>${gn}</div><div class="ghi-s">${g.myScore} - ${g.oppScore}</div><button class="ghi-x" style="opacity:1;background:var(--bluebg);color:var(--blue)" onclick="editGameInfo('${g.id}',event)">編集</button><button class="ghi-x" onclick="delG('${g.id}',event)">削除</button>`;
     d.onclick=e=>{if(e.target.classList.contains('ghi-x'))return;ldG(g.id)};l.appendChild(d)})}
 function delG(id,e){e.stopPropagation();if(!confirm('削除しますか？'))return;games=games.filter(g=>g.id!==id);save();renderHist()}
 function ldG(id){const g=games.find(g=>g.id===id);if(!g||!g.data)return;G=JSON.parse(JSON.stringify(g.data));selSide='my';selId=null;save();showScreen('game')}
@@ -2768,241 +2767,9 @@ if('serviceWorker' in navigator){
     }
   } else {
     navigator.serviceWorker.register('sw.js').catch(function(){});
-
-// ============================================================
-// AI ANALYSIS — Player & Game
-// ============================================================
-
-async function aiAnalyzePlayer(playerKey) {
-  // Gather player stats across all games
-  const activeId = myTeams[activeTeamIdx] ? myTeams[activeTeamIdx].id : '';
-  const fg = games.filter(g => (g.myTeamId || '') === activeId || activeId === '');
-  if (!fg.length) { alert('試合データがありません'); return; }
-
-  // Build player stats map (same logic as renderCareer)
-  const pMap = {};
-  const gameHistory = [];
-  fg.forEach(g => {
-    if (!g.data || !g.data.events) return;
-    const ps = g.data.myPlayers || myTeam.players;
-    ps.forEach((p, pi) => {
-      const key = p.id || (p.number + '_' + p.name);
-      if (key !== playerKey) return;
-      const ev = g.data.events.filter(e => e.side === 'my' && e.pid === pi);
-      if (!ev.length) return;
-      const s2 = ev.filter(e => e.type === 'SHOT' && e.st === '2PT');
-      const s3 = ev.filter(e => e.type === 'SHOT' && e.st === '3PT');
-      const twom = s2.filter(e => e.made).length, twoa = s2.length;
-      const fgm = twom + s3.filter(e => e.made).length, fga = s2.length + s3.length;
-      const tpm = s3.filter(e => e.made).length, tpa = s3.length;
-      const ftm = ev.filter(e => e.type === 'FT_MADE').length;
-      const fta = ftm + ev.filter(e => e.type === 'FT_MISS').length;
-      const pts = ev.reduce((s, e) => s + (e.pts || 0), 0);
-      const reb = ev.filter(e => e.type === 'OR' || e.type === 'DR').length;
-      const ast = ev.filter(e => e.type === 'AST').length;
-      const stl = ev.filter(e => e.type === 'STL').length;
-      const blk = ev.filter(e => e.type === 'BLK').length;
-      const to = ev.filter(e => e.type === 'TO').length;
-      const pf = ev.filter(e => e.type === 'PF').length;
-      const eff = pts + reb + ast + stl + blk - (fga - fgm) - (fta - ftm) - to;
-      gameHistory.push({
-        date: g.date || '', opponent: g.opponent || '',
-        pts, twom, twoa, fgm, fga, tpm, tpa, ftm, fta,
-        fg_pct: fga ? Math.round(fgm / fga * 100) : 0,
-        tp_pct: tpa ? Math.round(tpm / tpa * 100) : 0,
-        ft_pct: fta ? Math.round(ftm / fta * 100) : 0,
-        reb, ast, stl, blk, to, pf, eff
-      });
-    });
-  });
-
-  if (!gameHistory.length) { alert('この選手のデータがありません'); return; }
-
-  // Find player name/number
-  let pName = '', pNum = '';
-  const allPlayers = [...myTeam.players];
-  allPlayers.forEach(p => {
-    const key = p.id || (p.number + '_' + p.name);
-    if (key === playerKey) { pName = p.name; pNum = p.number; }
-  });
-
-  // Show modal
-  document.getElementById('ai-modal-title').textContent = `🤖 AI分析 — #${pNum} ${pName}`;
-  document.getElementById('ai-modal-body').innerHTML = `
-    <div style="text-align:center;padding:40px 20px">
-      <div style="font-size:24px;margin-bottom:12px">⏳</div>
-      <div style="color:var(--t2);font-size:13px">Claudeが分析中です...</div>
-    </div>`;
-  openM('ai-modal');
-
-  const prompt = `あなたは女子中学生バスケットボールの分析AIです。
-以下は選手「#${pNum} ${pName}」の試合別スタッツです（${gameHistory.length}試合分）。
-
-${JSON.stringify(gameHistory, null, 2)}
-
-以下の観点でコーチ向けの分析レポートを日本語で作成してください：
-1. **総合評価**（この選手の強みと特徴を簡潔に）
-2. **成長トレンド**（試合を重ねるごとの変化・伸び）
-3. **強み**（数値から読み取れる得意なプレー）
-4. **課題・改善ポイント**（具体的な数値を根拠に）
-5. **コーチへの提言**（練習や起用法のアドバイス）
-
-箇条書きと見出しを使い、読みやすくまとめてください。`;
-
-  try {
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-6',
-        max_tokens: 1000,
-        messages: [{ role: 'user', content: prompt }]
-      })
-    });
-    const data = await res.json();
-    const text = data.content && data.content[0] ? data.content[0].text : '分析に失敗しました';
-    document.getElementById('ai-modal-body').innerHTML = formatAIText(text);
-  } catch (e) {
-    document.getElementById('ai-modal-body').innerHTML = '<div style="color:var(--red);padding:20px">エラーが発生しました。再度お試しください。</div>';
   }
 }
-
-async function aiAnalyzeGame(gameId) {
-  const g = games.find(g => g.id === gameId);
-  if (!g || !g.data || !g.data.events) { alert('この試合のデータがありません'); return; }
-
-  // Build game stats
-  const myLabel = g.myTeamName || myTeam.name || 'MY TEAM';
-  const oppLabel = g.opponent || '相手';
-  const myScore = g.myScore || 0, oppScore = g.oppScore || 0;
-  const result = myScore > oppScore ? '勝利' : myScore < oppScore ? '敗戦' : '引き分け';
-
-  function calcStats(side, players) {
-    const ev = g.data.events.filter(e => e.side === side);
-    const ps = players || [];
-    const playerStats = ps.map((p, pi) => {
-      const pev = ev.filter(e => e.pid === pi);
-      if (!pev.length) return null;
-      const s2 = pev.filter(e => e.type === 'SHOT' && e.st === '2PT');
-      const s3 = pev.filter(e => e.type === 'SHOT' && e.st === '3PT');
-      const fgm = s2.filter(e => e.made).length + s3.filter(e => e.made).length;
-      const fga = s2.length + s3.length;
-      const tpm = s3.filter(e => e.made).length, tpa = s3.length;
-      const ftm = pev.filter(e => e.type === 'FT_MADE').length;
-      const fta = ftm + pev.filter(e => e.type === 'FT_MISS').length;
-      const pts = pev.reduce((s, e) => s + (e.pts || 0), 0);
-      const reb = pev.filter(e => e.type === 'OR' || e.type === 'DR').length;
-      const ast = pev.filter(e => e.type === 'AST').length;
-      const stl = pev.filter(e => e.type === 'STL').length;
-      const blk = pev.filter(e => e.type === 'BLK').length;
-      const to = pev.filter(e => e.type === 'TO').length;
-      return { name: `#${p.number} ${p.name}`, pts, fgm, fga, fg_pct: fga ? Math.round(fgm/fga*100) : 0, tpm, tpa, ftm, fta, reb, ast, stl, blk, to };
-    }).filter(Boolean);
-
-    const tot = ev.reduce((t, e) => {
-      if (e.type === 'SHOT') { t.fga++; if (e.made) t.fgm++; if (e.st === '3PT') { t.tpa++; if (e.made) t.tpm++; } }
-      if (e.type === 'FT_MADE') { t.ftm++; t.fta++; } if (e.type === 'FT_MISS') t.fta++;
-      if (e.type === 'OR' || e.type === 'DR') t.reb++;
-      if (e.type === 'AST') t.ast++; if (e.type === 'STL') t.stl++;
-      if (e.type === 'BLK') t.blk++; if (e.type === 'TO') t.to++;
-      return t;
-    }, { fgm: 0, fga: 0, tpm: 0, tpa: 0, ftm: 0, fta: 0, reb: 0, ast: 0, stl: 0, blk: 0, to: 0 });
-
-    return { playerStats, totals: { ...tot, fg_pct: tot.fga ? Math.round(tot.fgm/tot.fga*100) : 0, tp_pct: tot.tpa ? Math.round(tot.tpm/tot.tpa*100) : 0, ft_pct: tot.fta ? Math.round(tot.ftm/tot.fta*100) : 0 } };
-  }
-
-  const myPlayers = g.data.myPlayers || myTeam.players;
-  const oppPlayers = g.data.oppPlayers || g.oppPlayers || [];
-  const myStats = calcStats('my', myPlayers);
-  const oppStats = calcStats('opp', oppPlayers);
-
-  // Quarter scores
-  const myQS = g.data.myQS || g.myQS || [];
-  const oppQS = g.data.oppQS || g.oppQS || [];
-
-  document.getElementById('ai-modal-title').textContent = `🤖 試合分析 — ${g.date} vs ${oppLabel}`;
-  document.getElementById('ai-modal-body').innerHTML = `
-    <div style="text-align:center;padding:40px 20px">
-      <div style="font-size:24px;margin-bottom:12px">⏳</div>
-      <div style="color:var(--t2);font-size:13px">Claudeが分析中です...</div>
-    </div>`;
-  openM('ai-modal');
-
-  const prompt = `あなたは女子中学生バスケットボールの分析AIです。
-以下は試合のスタッツです。
-
-【試合情報】
-日付: ${g.date || '不明'} | ${myLabel} vs ${oppLabel} | スコア: ${myScore} - ${oppScore}（${result}）
-${g.gameName ? `大会名: ${g.gameName}` : ''}
-クォータースコア: ${myLabel}[${myQS.join(',')}] vs ${oppLabel}[${oppQS.join(',')}]
-
-【${myLabel} チームスタッツ】
-${JSON.stringify(myStats.totals)}
-
-【${myLabel} 選手別】
-${JSON.stringify(myStats.playerStats)}
-
-${oppStats.playerStats.length ? `【${oppLabel} チームスタッツ】
-${JSON.stringify(oppStats.totals)}
-
-【${oppLabel} 選手別】
-${JSON.stringify(oppStats.playerStats)}` : ''}
-
-以下の観点でコーチ向けの試合分析レポートを日本語で作成してください：
-1. **試合総括**（流れと勝因/敗因を簡潔に）
-2. **攻撃面の分析**（シュート効率・得点パターン）
-3. **守備面の分析**（リバウンド・ターンオーバー・スティール）
-4. **MVPとなった選手**（根拠となる数値とともに）
-5. **次の試合に向けた改善点**（具体的なアドバイス）
-
-箇条書きと見出しを使い、読みやすくまとめてください。`;
-
-  try {
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-6',
-        max_tokens: 1000,
-        messages: [{ role: 'user', content: prompt }]
-      })
-    });
-    const data = await res.json();
-    const text = data.content && data.content[0] ? data.content[0].text : '分析に失敗しました';
-    document.getElementById('ai-modal-body').innerHTML = formatAIText(text);
-  } catch (e) {
-    document.getElementById('ai-modal-body').innerHTML = '<div style="color:var(--red);padding:20px">エラーが発生しました。再度お試しください。</div>';
-  }
-}
-
-function formatAIText(text) {
-  // Convert markdown to simple HTML
-  let html = text
-    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-    .replace(/^### (.+)$/gm, '<div style="font-family:var(--fd);font-size:13px;color:var(--acc);font-weight:700;margin:14px 0 6px;border-bottom:1px solid var(--brd);padding-bottom:3px">$1</div>')
-    .replace(/^## (.+)$/gm, '<div style="font-family:var(--fd);font-size:14px;color:var(--acc);font-weight:700;margin:16px 0 8px;border-bottom:1px solid var(--brd);padding-bottom:4px">$1</div>')
-    .replace(/^# (.+)$/gm, '<div style="font-family:var(--fd);font-size:15px;color:var(--my);font-weight:700;margin:0 0 12px">$1</div>')
-    .replace(/^- (.+)$/gm, '<div style="display:flex;gap:6px;margin:4px 0;padding-left:4px"><span style="color:var(--acc);flex-shrink:0">•</span><span>$1</span></div>')
-    .replace(/^\d+\. (.+)$/gm, '<div style="margin:4px 0;padding-left:8px">$1</div>')
-    .replace(/\n\n/g, '<div style="height:8px"></div>')
-    .replace(/\n/g, '<br>');
-  return `<div style="padding:4px 0">${html}</div>`;
-}
-
-
-<!-- AI Analysis Modal -->
-<div class="mover" id="ai-modal">
-  <div class="mdl" style="width:640px;max-width:95vw">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
-      <h2 style="margin-bottom:0" id="ai-modal-title">🤖 AI分析</h2>
-      <button class="bs2" onclick="closeM('ai-modal')" style="padding:6px 14px;font-size:12px">✕ 閉じる</button>
-    </div>
-    <div id="ai-modal-body" style="min-height:120px;font-size:13px;line-height:1.8;color:var(--t1)">
-      <div style="text-align:center;padding:40px;color:var(--t3)">分析中...</div>
-    </div>
-  </div>
-</div>
+</script>
 
 </body>
 </html>
