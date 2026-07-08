@@ -2243,7 +2243,13 @@ async function exportBoxPDF(){
   // --- BOX Score Table ---
   function drawTbl(ctx,yStart,ps,side,qf,teamColor){
     var all=ps.map(function(_,i){return Object.assign({i:i},calcPS(side,i,qf))});
-    var tot=all.reduce(function(t,s){Object.keys(s).forEach(function(k){if(k!=='i')t[k]=(t[k]||0)+s[k]});return t},{});
+    var active=all.filter(function(s){return s.pts>0||s.fga>0||s.fta>0||s.reb>0||s.ast>0||s.stl>0||s.blk>0||s.to>0||s.pf>0||s.def>0});
+    if(!active.length){
+      ctx.font='400 '+mm(2.2)+'px Inter,sans-serif';ctx.fillStyle=C.light;ctx.textAlign='left';ctx.textBaseline='middle';
+      ctx.fillText('No stats recorded',mm(12),mm(yStart+2));
+      return yStart+5;
+    }
+    var tot=active.reduce(function(t,s){Object.keys(s).forEach(function(k){if(k!=='i')t[k]=(t[k]||0)+s[k]});return t},{});
     var hdr=['','PTS','2P','2P%','3P','3P%','FG','FG%','FT','FT%','OR','DR','REB','AST','STL','BLK','TO','PF','EFF'];
     var cw=[22,8,11,9,11,9,11,9,11,9,6,6,8,8,8,8,6,6,8];
     var totalW=cw.reduce(function(a,b){return a+b},0);
@@ -2258,7 +2264,7 @@ async function exportBoxPDF(){
 
     // Data rows
     ctx.font='400 '+mm(2.2)+'px Inter,sans-serif';ctx.textBaseline='middle';
-    all.forEach(function(s,ri){
+    active.forEach(function(s,ri){
       if(ri%2===0){ctx.fillStyle=C.stripe;ctx.fillRect(mm(mg),mm(y),mm(totalW),mm(rH))}
       ctx.fillStyle=C.black;
       var p=ps[s.i],eff=calcEff(s);
@@ -2745,7 +2751,7 @@ onAuthStateChanged(auth,async user=>{
 
 <script>
 // App version — change this to force cache refresh
-var APP_VERSION='2026031904';
+var APP_VERSION='2026070801';
 if('serviceWorker' in navigator){
   // Check version change first
   var lastVer=localStorage.getItem('siq_ver');
