@@ -2818,6 +2818,8 @@ onAuthStateChanged(auth,async user=>{
   if(_fbUser&&user&&_fbUser.uid===user.uid)return; // skip re-fire for same user
   _fbUser=user;
   window._fbUser=user;
+  window.__iqbGetIdToken=()=>auth.currentUser.getIdToken();   /* IQ Series 課金 */
+  window.IQBilling&&IQBilling.setUser(user);                  /* IQ Series 課金 */
   renderAuthBar();
   if(user){
     await fbLoad();
@@ -2854,5 +2856,18 @@ if('serviceWorker' in navigator){
 }
 </script>
 
+
+<!-- ===== IQ Series 課金（ここから） ===== -->
+<script src="/iq-billing.js"></script>
+<script>
+  IQBilling.init({
+    app: 'stat-iq',
+    priceMonthly: 'price_1TE8E9PwXDWLFj6iEYrFkbYS',   /* Stripeで新しい価格を作ったら差し替える */
+    priceYearly:  'price_1TE8E8PwXDWLFj6ijSEweIS3',
+    ownerUids: ['tmpnW0YjuuUf1KbNPTC9H6ffnRG2'],
+    trialDays: 14
+  });
+</script>
+<!-- ===== IQ Series 課金（ここまで） ===== -->
 </body>
 </html>
