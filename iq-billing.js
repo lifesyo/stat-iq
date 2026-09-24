@@ -192,6 +192,32 @@
     try { return localStorage.getItem(LSKEY()) === '1'; } catch (e) { return false; }
   }
 
+  /* 直近に確認できた契約状態を端末に控えておく。
+     体育館などで通信できないとき、契約者を FREE 扱いにしないための保険。
+     14日を過ぎたものは信用しない。 */
+  var LSPLAN = function () { return 'iq_' + cfg.app + '_last_plan'; };
+  var PLAN_GRACE_MS = 14 * 24 * 60 * 60 * 1000;
+
+  function setLocalPlan(plan, source) {
+    try {
+      if (plan === 'pro') {
+        localStorage.setItem(LSPLAN(), JSON.stringify({ plan: plan, source: source || null, at: Date.now() }));
+      } else {
+        localStorage.removeItem(LSPLAN());
+      }
+    } catch (e) { }
+  }
+  function getLocalPlan() {
+    try {
+      var raw = localStorage.getItem(LSPLAN());
+      if (!raw) return null;
+      var d = JSON.parse(raw);
+      if (!d || d.plan !== 'pro') return null;
+      if (!d.at || (Date.now() - d.at) > PLAN_GRACE_MS) return null;
+      return d;
+    } catch (e) { return null; }
+  }
+
   async function refresh() {
     // ログインしていないとき：オーナーだけはオフラインでも維持する
     if (!state.user) {
@@ -221,11 +247,18 @@
       state.stripeCustomerId = d.stripeCustomerId || null;
       state.currentPeriodEnd = d.currentPeriodEnd || null;
       setLocalOwnerFlag(state.source === 'comp');
+      setLocalPlan(state.plan, state.source);
     } catch (e) {
       console.error('[IQBilling] check-subscription 失敗', e);
-      // 通信できないときは端末に残っているオーナーフラグのみ尊重する
-      state.plan = getLocalOwnerFlag() ? 'pro' : 'free';
-      state.source = getLocalOwnerFlag() ? 'comp' : null;
+      // 通信できないとき：オーナーフラグ、または直近14日以内に確認できた契約を尊重する
+      var cached = getLocalPlan();
+      if (getLocalOwnerFlag()) {
+        state.plan = 'pro'; state.source = 'comp';
+      } else if (cached) {
+        state.plan = 'pro'; state.source = cached.source || 'cache';
+      } else {
+        state.plan = 'free'; state.source = null;
+      }
     }
     state.ready = true;
     notify();

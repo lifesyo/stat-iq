@@ -205,7 +205,7 @@ input,select{font-family:inherit;outline:none;-webkit-user-select:text;user-sele
     <button class="hbtn" onclick="openOppManager()"><div class="ic r">👥</div>相手チーム管理</button>
     <button class="hbtn" onclick="openNewGame()"><div class="ic b">▶</div>新しい試合を開始</button>
     <button class="hbtn" onclick="showScreen('hist')"><div class="ic o">📊</div>試合履歴</button>
-    <button class="hbtn" onclick="showScreen('career')"><div class="ic g">📈</div>通算スタッツ</button>
+    <button class="hbtn" onclick="openCareerGated()"><div class="ic g">📈</div>通算スタッツ</button>
   </div>
 </div>
 
@@ -1638,7 +1638,8 @@ function _gameToAnalysis(d,meta){
   out.oppTeam={stats:_calcFromEvents(oppEv),zones:_zonesFromEvents(oppEv)};
   return out;
 }
-function exportAnalysisJSON(scope){
+async function exportAnalysisJSON(scope){
+  if(!await iqGate())return;
   var payload={app:'Stat IQ',version:APP_VERSION,exported:new Date().toISOString().slice(0,10),
     team:(myTeam&&myTeam.name)||'MY TEAM',zoneLabels:ZONE_LABELS,games:[]};
   if(scope==='game'){
@@ -2193,6 +2194,7 @@ load();if(G){selSide='my';selId=null;showScreen('game')}
 // PDF EXPORT — BOX SCORE + team charts + all player charts
 // ============================================================
 async function exportBoxPDF(){
+  if(!await iqGate())return;
   if(!G){alert('試合データがありません');return}
   if(!window.jspdf||!window.jspdf.jsPDF){alert('PDF機能を読み込み中です。少し待ってから再度お試しください。');return}
   var JP=window.jspdf.jsPDF;
@@ -2830,7 +2832,7 @@ onAuthStateChanged(auth,async user=>{
 
 <script>
 // App version — change this to force cache refresh
-var APP_VERSION='2026071001';
+var APP_VERSION='2026092401';
 if('serviceWorker' in navigator){
   // Check version change first
   var lastVer=localStorage.getItem('siq_ver');
@@ -2867,6 +2869,24 @@ if('serviceWorker' in navigator){
     ownerUids: ['tmpnW0YjuuUf1KbNPTC9H6ffnRG2'],
     trialDays: 14
   });
+</script>
+<script>
+/* ===== IQ Series 有料ゲート =====
+   判定が終わるまで最大3.6秒待ってから判断する。
+   読み込み直後に押されて誤って課金画面が出るのを防ぐため。 */
+async function iqGate(){
+  if(!window.IQBilling) return true;
+  for(var i=0;i<24 && !IQBilling.isReady(); i++){
+    await new Promise(function(r){setTimeout(r,150)});
+  }
+  return IQBilling.requirePro();
+}
+</script>
+<script>
+async function openCareerGated(){
+  if(!await iqGate()) return;
+  showScreen('career');
+}
 </script>
 <!-- ===== IQ Series 課金（ここまで） ===== -->
 </body>
