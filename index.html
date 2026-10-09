@@ -191,6 +191,41 @@ input,select{font-family:inherit;outline:none;-webkit-user-select:text;user-sele
 .pbtn.awaiting:active{transform:scale(.96)}
 .await-banner{padding:5px 8px;background:rgba(255,214,0,.1);border:1px solid #ffd600;border-radius:6px;font-size:11px;font-weight:700;color:#ffd600;text-align:center;letter-spacing:.5px;margin-bottom:3px;display:none}
 .await-banner.on{display:block}
+
+/* 選手ボタン：得点・ファウル数を常時表示 */
+.pinfo{display:flex;flex-direction:column;min-width:0;flex:1;gap:2px;text-align:left}
+.plive{display:flex;align-items:baseline;gap:6px;line-height:1;white-space:nowrap}
+.plive .pp{font-family:var(--fd);font-size:12px;font-weight:700;color:var(--t1)}
+.plive .pp small{font-family:var(--fb);font-size:8px;font-weight:600;color:var(--t3);margin-left:1px}
+.plive .pp.z{color:var(--t3);font-weight:500}
+.plive .pf{font-family:var(--fd);font-size:11px;font-weight:700;color:var(--t3);padding:1px 4px;border-radius:3px;background:rgba(255,255,255,.04)}
+.plive .pf.f1,.plive .pf.f2{color:var(--t2)}
+.plive .pf.f3{color:#ffd600;background:rgba(255,214,0,.12)}
+.plive .pf.f4{color:#0b0f14;background:var(--orn)}
+.plive .pf.f5{color:#fff;background:var(--red)}
+.pbtn.fouled{opacity:.55}
+.pcol .pbtn{padding-top:5px;padding-bottom:5px}
+.pinfo .pnm{line-height:1.15}
+
+/* 選手選択時のシュート確率 */
+.shoot{display:flex;flex-direction:column;gap:3px;padding:6px 8px;background:var(--bgc);border:1px solid var(--brd);border-radius:6px;margin-bottom:4px}
+.shoot .si{display:flex;align-items:baseline;gap:6px;line-height:1}
+.shoot .sl{font-family:var(--fd);font-size:11px;font-weight:700;width:20px;flex-shrink:0}
+.shoot .sl.c2{color:var(--t2)}.shoot .sl.c3{color:var(--orn)}.shoot .sl.cfg{color:var(--acc)}.shoot .sl.cft{color:var(--blue)}
+.shoot .sm{font-family:var(--fd);font-size:12px;font-weight:600;color:var(--t2);flex:1}
+.shoot .sp{font-family:var(--fd);font-size:15px;font-weight:700;color:var(--t1);text-align:right}
+.shoot .sp small{font-size:9px;color:var(--t3);margin-left:1px}
+.shoot .sp .na{color:var(--t3);font-weight:500}
+
+/* タイムアウト記録ボタン */
+.tout{width:100%;margin:2px 0 4px;padding:7px 6px;border-radius:8px;background:var(--bgc);border:1px dashed var(--brd2);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;transition:var(--tr)}
+.tout:active{transform:scale(.97)}
+@media(hover:hover){.tout:hover{border-color:#ffd600;background:rgba(255,214,0,.06)}}
+.tout-l{font-size:11px;font-weight:700;color:var(--t2);letter-spacing:.3px;white-space:nowrap}
+.tout-v{font-family:var(--fd);font-size:13px;font-weight:700;color:var(--t1);white-space:nowrap}
+.tout-v small{font-family:var(--fb);font-size:9px;color:var(--t3);font-weight:600;margin-right:3px}
+.tout.over .tout-v{color:var(--red)}
+.tout.flash{border-color:#ffd600;background:rgba(255,214,0,.14)}
 /* ============================================================
    iPhone 対応（スマホ幅・スマホ横向きのときだけ適用。iPad / Mac の表示は変更しない）
    縦向き: 幅600px以下 / 横向き: タッチ端末で高さ500px以下
@@ -219,6 +254,11 @@ input,select{font-family:inherit;outline:none;-webkit-user-select:text;user-sele
   .sb-mid{margin:0 8px}
   .tb{overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}
   .tb::-webkit-scrollbar{display:none}
+  .shoot{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;padding:6px 4px}
+  .shoot .si{flex-direction:column;align-items:center;gap:3px}
+  .shoot .sl{width:auto}
+  .shoot .sm{flex:none;font-size:11px}
+  .shoot .sp{text-align:center}
   .tbb{flex-shrink:0}
   .mside{display:flex;gap:6px;padding:6px 8px;background:var(--bg2);border-bottom:1px solid var(--brd);flex-shrink:0}
   .mside button{flex:1;min-width:0;padding:8px 6px;border-radius:8px;font-family:var(--fd);font-size:13px;font-weight:700;letter-spacing:.5px;background:var(--bg3);border:1px solid var(--brd);color:var(--t2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -241,6 +281,8 @@ input,select{font-family:inherit;outline:none;-webkit-user-select:text;user-sele
   .pcol .pbtn .dot{position:absolute;top:5px;left:5px}
   .pcol .pbtn .pn{min-width:0;font-size:17px;line-height:1}
   .pcol .pbtn .pnm{max-width:100%;font-size:10px}
+  .pcol .pbtn .pinfo{flex:none;max-width:100%;align-items:center;text-align:center;gap:3px}
+  .pcol .pbtn .plive{gap:4px}
   .scol{order:3;width:auto;flex:none;display:grid;grid-template-columns:repeat(5,1fr);gap:5px;padding:8px;border:none!important;overflow:visible}
   .scol>*{grid-column:1/-1}
   .scol .sst{display:none}
@@ -250,6 +292,7 @@ input,select{font-family:inherit;outline:none;-webkit-user-select:text;user-sele
   .scol .psum{margin-top:2px}
   .scol .clbl{display:none}
   .await-banner{grid-column:1/-1}
+  .tout{flex-direction:row;justify-content:space-between;padding:9px 12px}
 
   /* 試合履歴 */
   #hist{padding:14px 12px}
@@ -296,6 +339,12 @@ input,select{font-family:inherit;outline:none;-webkit-user-select:text;user-sele
   .scol .stb{grid-column:auto;padding:6px 2px}
   .scol .sv2{font-size:18px}
   .scol .psum{margin-top:2px}
+  .tout{flex-direction:row;justify-content:space-between;padding:7px 10px}
+  .scol .clbl{display:none}
+  .shoot{grid-template-columns:1fr 1fr;gap:3px 8px;padding:5px 7px}
+  .shoot .si{flex-direction:row;align-items:baseline;gap:4px}
+  .shoot .sm{flex:1;font-size:10px}
+  .shoot .sp{font-size:13px;text-align:right}
 }
 /* 表（BOX・通算）：スマホでは横スクロール＋選手名の列を固定 */
 @media (max-width:600px), (max-height:500px) and (pointer:coarse){
@@ -1236,6 +1285,47 @@ function commitPendingAction(pid){
   save();drawCourt('my');drawCourt('opp');renderPlayers();updateAll();
 }
 
+// ============================================================
+// タイムアウト（チーム単位・選手選択なしで即記録）
+// 4Q制では 前半2回／後半3回 を目安として「使用回数/上限」を表示（上限を超えても記録はできる）
+// ============================================================
+function toHalfInfo(q){
+  if(!G||G.quarters!==4)return{label:'',limit:0,qs:null};
+  return q<2?{label:'前半',limit:2,qs:[0,1]}:{label:'後半',limit:3,qs:[2,3]};
+}
+function timeoutCount(side,qs){
+  if(!G)return 0;
+  return G.events.filter(e=>e.type==='TIMEOUT'&&e.side===side&&(!qs||qs.indexOf(e.q)>=0)).length;
+}
+function timeoutBtnHTML(side){
+  if(!G)return'';
+  const h=toHalfInfo(G.cq);
+  const n=timeoutCount(side,h.qs);
+  const over=h.limit&&n>h.limit;
+  const v=h.limit?`<small>${h.label}</small>${n} / ${h.limit}`:`${n}回`;
+  return `<button class="tout${over?' over':''}" id="tout-${side}" onclick="recTimeout('${side}')"><span class="tout-l">⏱ タイムアウト</span><span class="tout-v">${v}</span></button>`;
+}
+// 試合入力中の確認表示（画面上部。下部のボタンに重ならないように）
+function _gameToast(msg,sub){
+  let t=document.getElementById('game-toast');
+  if(!t){t=document.createElement('div');t.id='game-toast';
+    t.style.cssText='position:fixed;top:104px;left:50%;transform:translateX(-50%);width:max-content;max-width:calc(100vw - 24px);background:rgba(18,23,30,.96);color:var(--t1);border:1px solid #ffd600;padding:9px 16px;border-radius:10px;font-size:13px;font-weight:700;z-index:9999;transition:opacity .3s;pointer-events:none;text-align:center;box-shadow:var(--sh);opacity:0';
+    document.body.appendChild(t)}
+  t.innerHTML=msg+(sub?'<div style="font-size:10px;font-weight:500;color:var(--t3);margin-top:2px">'+sub+'</div>':'');
+  t.style.opacity='1';
+  clearTimeout(t._tm);t._tm=setTimeout(function(){t.style.opacity='0'},2200);
+}
+function recTimeout(side){
+  if(!G)return;
+  G.events.push({id:uid(),q:G.cq,side,pid:null,type:'TIMEOUT',made:false,pts:0,ts:Date.now()});
+  save();updateAll();
+  const h=toHalfInfo(G.cq),n=timeoutCount(side,h.qs);
+  const team=side==='my'?(myTeam.name||'自チーム'):(G.opponent||'相手');
+  _gameToast(`⏱ ${team}　タイムアウト（${h.label?h.label+' ':''}${n}回目）`,'取消は「↩ 取消」');
+  const b=document.getElementById('tout-'+side);
+  if(b){b.classList.add('flash');setTimeout(()=>b.classList.remove('flash'),600)}
+}
+
 function selAndStat(side,type,pts){
   if(!G)return;
   // Create pending action — wait for player selection
@@ -1354,8 +1444,21 @@ function sortOC(side){
 
 // Players
 function renderPlayers(){if(!G)return;renderPC('my');renderPC('opp')}
+// 選手ごとの現在の得点・ファウル数（試合全体）
+var _live={my:{},opp:{}};
+function calcLive(side){
+  const m={};
+  if(G)G.events.forEach(e=>{
+    if(e.side!==side||e.pid===null||e.pid===undefined)return;
+    const r=m[e.pid]||(m[e.pid]={pts:0,pf:0});
+    r.pts+=(e.pts||0);
+    if(e.type==='PF')r.pf++;
+  });
+  _live[side]=m;
+}
 function renderPC(side){
   var col=document.getElementById(side+'-pcol');col.innerHTML='';
+  calcLive(side);
   var ps=side==='my'?myTeam.players:G.oppPlayers;
   var oc=side==='my'?G.myOC:G.oppOC;
 
@@ -1412,7 +1515,9 @@ function mkPB(p,idx,side,onCourt){
   const isSel=!pendingAction&&selSide===side&&selId===idx;
   b.className='pbtn'+(isAwaiting?' awaiting':'')+(isSel?(side==='opp'?' osel':' sel'):'');
   b.dataset.side=side;b.dataset.idx=idx;b.dataset.oncourt=onCourt?'1':'0';
-  b.innerHTML=`<span class="dot ${onCourt?(side==='opp'?'oon':'on'):'off'}"></span><span class="pn">#${p.number}</span><span class="pnm">${p.name}</span>`;
+  const lv=(_live[side]&&_live[side][idx])||{pts:0,pf:0},fc=Math.min(lv.pf,5);
+  if(lv.pf>=5)b.classList.add('fouled');
+  b.innerHTML=`<span class="dot ${onCourt?(side==='opp'?'oon':'on'):'off'}"></span><span class="pn">#${p.number}</span><span class="pinfo"><span class="pnm">${p.name}</span><span class="plive"><span class="pp${lv.pts?'':' z'}">${lv.pts}<small>点</small></span><span class="pf f${fc}" title="ファウル ${lv.pf}">F${lv.pf}</span></span></span>`;
   b.addEventListener('click',e=>{if(_drd.didDrag)return;e.stopPropagation();
     // If pending action, commit it with this player
     if(pendingAction&&pendingAction.side===side){
@@ -1575,15 +1680,9 @@ function renderSC(side){
     const s2m=s2.filter(e=>e.made).length, s2a=s2.length;
     const s3m=s3.filter(e=>e.made).length, s3a=s3.length;
     const ftm=cnt('FT_MADE'), fta=ftm+cnt('FT_MISS');
-    const ftp=fta?Math.round(ftm/fta*100):0;
-    shootInfo=`<div style="padding:4px 6px;background:var(--bgc);border:1px solid var(--brd);border-radius:6px;margin-bottom:4px">
-      <div style="display:flex;gap:6px;justify-content:center;font-family:var(--fd);font-size:12px">
-        <span style="color:var(--t2)">2P</span><span style="color:var(--t1);font-weight:700">${s2m}/${s2a}</span>
-        <span style="color:var(--orn)">3P</span><span style="color:var(--t1);font-weight:700">${s3m}/${s3a}</span>
-        <span style="color:var(--blue)">FT</span><span style="color:var(--t1);font-weight:700">${ftm}/${fta}</span>
-      </div>
-      <div style="text-align:center;font-size:9px;color:var(--t3);margin-top:2px">FT%: ${ftp}%</div>
-    </div>`;
+        const pc=(m,a)=>a?Math.round(m/a*100)+'<small>%</small>':'<span class="na">-</span>';
+    const row=(lbl,cls,m,a)=>`<div class="si"><span class="sl ${cls}">${lbl}</span><span class="sm">${m}/${a}</span><span class="sp">${pc(m,a)}</span></div>`;
+    shootInfo=`<div class="shoot">${row('2P','c2',s2m,s2a)}${row('3P','c3',s3m,s3a)}${row('FG','cfg',s2m+s3m,s2a+s3a)}${row('FT','cft',ftm,fta)}</div>`;
   }
 
   let h=`<div class="clbl">${side==='my'?(myTeam.name||'MY'):(G?G.opponent:'OPP')}</div>
@@ -1600,7 +1699,8 @@ function renderSC(side){
     <button class="stb ${oh}" onclick="selAndStat('${side}','BLK',0)"><span class="sl2">BLK</span><span class="sv2">${isA&&pid!==null?cnt('BLK'):'-'}</span></button>
     <button class="stb ${oh}" onclick="selAndStat('${side}','TO',0)"><span class="sl2">TO</span><span class="sv2">${isA&&pid!==null?cnt('TO'):'-'}</span></button>
     <button class="stb ${oh}" onclick="selAndStat('${side}','PF',0)"><span class="sl2">PF</span><span class="sv2">${isA&&pid!==null?cnt('PF'):'-'}</span></button>
-    <button class="stb ${oh}" onclick="selAndStat('${side}','DEF',0)"><span class="sl2">DEF</span><span class="sv2">${isA&&pid!==null?cnt('DEF'):'-'}</span></button></div>`;
+    <button class="stb ${oh}" onclick="selAndStat('${side}','DEF',0)"><span class="sl2">DEF</span><span class="sv2">${isA&&pid!==null?cnt('DEF'):'-'}</span></button></div>
+    ${timeoutBtnHTML(side)}`;
   if(isA&&pid!==null){const p=(side==='my'?myTeam.players:G.oppPlayers)[pid];if(p){
     const pts=evts.reduce((s,e)=>s+(e.pts||0),0),reb=evts.filter(e=>e.type==='OR'||e.type==='DR').length,ast=cnt('AST'),stl=cnt('STL');
     h+=`<div class="psum"><div class="psum-n ${side==='my'?'mc':'oc'}">#${p.number} ${p.name}</div><div class="psum-g">
@@ -1635,6 +1735,7 @@ function renderEventLog(){
       if(ev.side==='my')runMy+=pts; else runOpp+=pts;
       scoreMap[ev.id]=runMy+'-'+runOpp;
     }
+    if(ev.type==='TIMEOUT')scoreMap[ev.id]=runMy+'-'+runOpp;
   });
 
   const evts=G.events.slice().reverse(); // newest first
@@ -1645,13 +1746,14 @@ function renderEventLog(){
   evts.forEach(ev=>{
     const ps=ev.side==='my'?myTeam.players:G.oppPlayers;
     const p=ps[ev.pid];
-    const pNum=p?'#'+p.number:'?';
+    const pNum=ev.type==='TIMEOUT'?'⏱':(p?'#'+p.number:'?');
     const sideColor=ev.side==='my'?'var(--my)':'var(--opp)';
     let actTxt='';
     if(ev.type==='SHOT'){
       actTxt=(ev.st==='3PT'?'3P':'2P')+(ev.made?' ○':' ×');
     }else if(ev.type==='FT_MADE') actTxt='FT ○';
     else if(ev.type==='FT_MISS') actTxt='FT ×';
+    else if(ev.type==='TIMEOUT') actTxt='タイムアウト（'+(ev.side==='my'?(myTeam.name||'自チーム'):(G.opponent||'相手'))+'）';
     else actTxt=ev.type;
     const ptsTxt=ev.pts?` +${ev.pts}`:'';
     // Score at this point
@@ -1754,6 +1856,13 @@ function _gameToAnalysis(d,meta){
   });
   const oppEv=(d.events||[]).filter(e=>e.side==='opp');
   out.oppTeam={stats:_calcFromEvents(oppEv),zones:_zonesFromEvents(oppEv)};
+  // タイムアウト：取った側・Q・その時点のスコア（記録順）
+  let rm=0,ro=0;out.timeouts=[];
+  (d.events||[]).forEach(e=>{
+    const p=(e.type==='SHOT'&&e.made&&e.pts)?e.pts:(e.type==='FT_MADE'?1:0);
+    if(p){if(e.side==='my')rm+=p;else ro+=p}
+    if(e.type==='TIMEOUT')out.timeouts.push({side:e.side,q:(e.q||0)+1,score:{my:rm,opp:ro}});
+  });
   return out;
 }
 async function exportAnalysisJSON(scope){
@@ -1811,7 +1920,8 @@ function renderBox(){if(!G)return;const ct=document.getElementById('bs-ct');
     const qf=bsQFilter;
     const all=ps.map((_,i)=>({i,...calcPS(side,i,qf)}));
 
-    let h=`<div class="btl ${side==='my'?'ml':'ol'}">${label}</div>`;
+    const _toN=G.events.filter(e=>e.type==='TIMEOUT'&&e.side===side).length;
+    let h=`<div class="btl ${side==='my'?'ml':'ol'}">${label}${_toN?`<span style="float:right;font-family:var(--fb);font-size:11px;font-weight:600;color:var(--t2)">⏱ タイムアウト ${_toN}回</span>`:''}</div>`;
 
     // Quarter filter (only once, at top of first team)
     if(side==='my'){
@@ -2323,7 +2433,7 @@ function syncMSide(){
   if(bm)bm.textContent=myTeam.name||'MY';
   if(bo)bo.textContent=(G&&G.opponent)||'OPP';
 }
-(function(){var _ua=updateAll;updateAll=function(){var r=_ua.apply(this,arguments);syncMSide();return r}})();
+(function(){var _ua=updateAll;updateAll=function(){var r=_ua.apply(this,arguments);syncMSide();if(typeof _drd==='undefined'||!_drd.active)renderPlayers();return r}})();
 
 load();if(G){selSide='my';selId=null;showScreen('game')}
 
@@ -3101,7 +3211,7 @@ onAuthStateChanged(auth,async user=>{
 
 <script>
 // App version — change this to force cache refresh
-var APP_VERSION='2026100903';
+var APP_VERSION='2026100904';
 if('serviceWorker' in navigator){
   // Check version change first
   var lastVer=localStorage.getItem('siq_ver');
