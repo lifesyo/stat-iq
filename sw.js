@@ -1,4 +1,4 @@
-const CACHE_NAME = 'statiq-v8';
+const CACHE_NAME = 'statiq-v9';
 const PRECACHE = [
   './',
   './index.html'
