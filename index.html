@@ -226,6 +226,8 @@ input,select{font-family:inherit;outline:none;-webkit-user-select:text;user-sele
   .mside button.on.opp{background:var(--oppbg);border-color:var(--opp);color:var(--opp)}
   #game:not(.ms-opp) #opp-pcol,#game:not(.ms-opp) #opp-scol,#game:not(.ms-opp) #cw-opp,
   #game.ms-opp #my-pcol,#game.ms-opp #my-scol,#game.ms-opp #cw-my{display:none}
+  /* プランバッジ（iq-billing.js が右下に固定表示）は試合入力中だけ隠す：DEFボタンやコートと重なるため */
+  body:has(#game.active) #iqb-auto-badge{display:none!important}
 }
 /* 縦向きスマホ：コート → 選手（横スクロール）→ スタッツボタン の縦積み */
 @media (max-width:600px){
@@ -3099,7 +3101,7 @@ onAuthStateChanged(auth,async user=>{
 
 <script>
 // App version — change this to force cache refresh
-var APP_VERSION='2026100902';
+var APP_VERSION='2026100903';
 if('serviceWorker' in navigator){
   // Check version change first
   var lastVer=localStorage.getItem('siq_ver');
