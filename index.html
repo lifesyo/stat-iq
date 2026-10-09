@@ -191,6 +191,116 @@ input,select{font-family:inherit;outline:none;-webkit-user-select:text;user-sele
 .pbtn.awaiting:active{transform:scale(.96)}
 .await-banner{padding:5px 8px;background:rgba(255,214,0,.1);border:1px solid #ffd600;border-radius:6px;font-size:11px;font-weight:700;color:#ffd600;text-align:center;letter-spacing:.5px;margin-bottom:3px;display:none}
 .await-banner.on{display:block}
+/* ============================================================
+   iPhone 対応（スマホ幅・スマホ横向きのときだけ適用。iPad / Mac の表示は変更しない）
+   縦向き: 幅600px以下 / 横向き: タッチ端末で高さ500px以下
+   ============================================================ */
+.mside{display:none}
+@media (max-width:600px), (max-height:500px) and (pointer:coarse){
+  /* 共通 */
+  .mdl,.mdl.wide{width:calc(100vw - 20px);max-height:calc(100dvh - 24px);padding:16px;border-radius:12px}
+  .mdl h2{font-size:18px;margin-bottom:12px}
+  .subp{width:calc(100vw - 24px);padding:16px}
+  .elo{width:min(300px,86vw)}
+  .ghi-x{opacity:1}
+
+  /* ホーム */
+  #home{padding:24px 16px;justify-content:flex-start;gap:14px}
+  #home .logo{margin-top:max(24px,6vh)}
+  .hbtns{width:100%;max-width:400px;margin-top:12px}
+
+  /* 試合入力：自チーム／相手を切り替えて片側ずつ表示 */
+  #game{height:100%;height:100dvh}
+  .sb{padding:4px 8px;height:48px}
+  .sb-t{gap:6px;min-width:0}
+  .sb-tn{font-size:11px;letter-spacing:.5px;max-width:24vw;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .sb-sc{font-size:30px;min-width:40px}
+  .sb-qs{display:none}
+  .sb-mid{margin:0 8px}
+  .tb{overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+  .tb::-webkit-scrollbar{display:none}
+  .tbb{flex-shrink:0}
+  .mside{display:flex;gap:6px;padding:6px 8px;background:var(--bg2);border-bottom:1px solid var(--brd);flex-shrink:0}
+  .mside button{flex:1;min-width:0;padding:8px 6px;border-radius:8px;font-family:var(--fd);font-size:13px;font-weight:700;letter-spacing:.5px;background:var(--bg3);border:1px solid var(--brd);color:var(--t2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .mside button.on.my{background:var(--mybg);border-color:var(--my);color:var(--my)}
+  .mside button.on.opp{background:var(--oppbg);border-color:var(--opp);color:var(--opp)}
+  #game:not(.ms-opp) #opp-pcol,#game:not(.ms-opp) #opp-scol,#game:not(.ms-opp) #cw-opp,
+  #game.ms-opp #my-pcol,#game.ms-opp #my-scol,#game.ms-opp #cw-my{display:none}
+}
+/* 縦向きスマホ：コート → 選手（横スクロール）→ スタッツボタン の縦積み */
+@media (max-width:600px){
+  .gm{display:flex;flex-direction:column;overflow-y:auto;-webkit-overflow-scrolling:touch}
+  .ccol{order:1;flex:1 1 auto;min-height:220px;max-height:calc(94vw + 30px);width:100%;padding:4px}
+  .pcol{order:2;margin-top:auto;width:auto;flex:none;flex-direction:row;align-items:stretch;gap:4px;overflow-x:auto;overflow-y:hidden;padding:6px 8px;border:none!important;border-bottom:1px solid var(--brd)!important;scrollbar-width:none}
+  .pcol::-webkit-scrollbar{display:none}
+  .pcol .clbl{writing-mode:vertical-rl;padding:2px 0;margin:0;font-size:7px;align-self:center;flex-shrink:0}
+  .pcol .clbl[style]{margin-top:0!important;margin-left:6px}
+  .pcol .pbtn{flex-direction:column;justify-content:center;gap:1px;min-width:58px;max-width:72px;min-height:48px;padding:5px 4px;flex-shrink:0;position:relative}
+  .pcol .pbtn .dot{position:absolute;top:5px;left:5px}
+  .pcol .pbtn .pn{min-width:0;font-size:17px;line-height:1}
+  .pcol .pbtn .pnm{max-width:100%;font-size:10px}
+  .scol{order:3;width:auto;flex:none;display:grid;grid-template-columns:repeat(5,1fr);gap:5px;padding:8px;border:none!important;overflow:visible}
+  .scol>*{grid-column:1/-1}
+  .scol .sst{display:none}
+  .scol .sg{display:contents}
+  .scol .stb{grid-column:auto;padding:8px 2px}
+  .scol .sv2{font-size:20px}
+  .scol .psum{margin-top:2px}
+  .scol .clbl{display:none}
+  .await-banner{grid-column:1/-1}
+
+  /* 試合履歴 */
+  #hist{padding:14px 12px}
+  .hhdr{flex-wrap:wrap;gap:8px;margin-bottom:12px}
+  .hhdr h2{font-size:19px}
+  .hhdr .bk{padding:7px 10px;font-size:11px}
+  .ghl{padding-right:0!important}
+  .ghi{flex-wrap:wrap;gap:4px 10px;padding:12px 14px}
+  .ghi-d{min-width:0;flex-basis:100%}
+  .ghi-t{flex:1 1 calc(100% - 96px);min-width:0;font-size:13px}
+  .ghi-s{font-size:18px}
+  .ghi-x:first-of-type{margin-left:auto}
+  #hist-edit{position:fixed;left:0;right:0;bottom:0;width:auto!important;max-height:75dvh;border-left:none!important;border-top:1px solid var(--brd);border-radius:14px 14px 0 0;z-index:60;box-shadow:var(--sh)}
+
+  /* 通算スタッツ */
+  #career{padding:14px 12px!important}
+
+  /* BOX SCORE */
+  .bso{padding:12px 10px}
+  .bsh{flex-wrap:wrap;gap:8px}
+  .bsh h2{font-size:20px}
+  .bs-chart-wrap.main,.bs-chart-wrap.sub{min-width:100%}
+
+  /* 新しい試合 */
+  #ng-modal .mdl>div:first-of-type{flex-wrap:wrap}
+  #ng-modal .mdl>div:first-of-type>div{flex:1 1 100%!important}
+  #ng-modal .mdl>div:first-of-type>div:nth-child(3){flex:1 1 0!important}
+  #ng-modal .mdl>div:first-of-type>div:nth-child(4){flex:0 0 84px!important;width:84px!important}
+  #ng-modal .mdl>div:nth-of-type(2){flex-direction:column;gap:12px!important}
+}
+/* 横向きスマホ：選手 | スタッツ（3列） | コート の横並び */
+@media (max-height:500px) and (pointer:coarse) and (min-width:601px){
+  .sb{height:40px}
+  .sb-sc{font-size:26px}
+  .tb{padding:3px 8px}
+  .tbb{padding:5px 10px}
+  .mside{padding:4px 8px}
+  .mside button{padding:5px 6px;font-size:12px}
+  .pcol .pbtn{min-height:32px;padding:5px 7px}
+  .scol{width:196px;display:grid;grid-template-columns:repeat(3,1fr);align-content:start;gap:4px}
+  .scol>*{grid-column:1/-1}
+  .scol .sst{display:none}
+  .scol .sg{display:contents}
+  .scol .stb{grid-column:auto;padding:6px 2px}
+  .scol .sv2{font-size:18px}
+  .scol .psum{margin-top:2px}
+}
+/* 表（BOX・通算）：スマホでは横スクロール＋選手名の列を固定 */
+@media (max-width:600px), (max-height:500px) and (pointer:coarse){
+  .bt{display:block;overflow-x:auto;-webkit-overflow-scrolling:touch;white-space:nowrap}
+  .bt th:first-child,.bt td:first-child{position:sticky;left:0;z-index:1;background:var(--bg2)}
+  .bt tr.tot td:first-child{background:#0f2a21}
+}
 </style>
 
 </head>
@@ -224,6 +334,7 @@ input,select{font-family:inherit;outline:none;-webkit-user-select:text;user-sele
     <div class="tbs"></div>
     <button class="tbb" onclick="endGame()">■ 終了</button>
   </div>
+  <div class="mside" id="mside"><button class="my on" id="mside-my" onclick="setMSide('my')">MY</button><button class="opp" id="mside-opp" onclick="setMSide('opp')">OPP</button></div>
   <div class="gm">
     <div class="pcol left" id="my-pcol"></div>
     <div class="scol ls" id="my-scol"></div>
@@ -1344,6 +1455,10 @@ function mkPB(p,idx,side,onCourt){
       var edgeZone=45,scrollSpeed=8;
       if(t.clientY<rect.top+edgeZone)pcol.scrollTop-=scrollSpeed;
       else if(t.clientY>rect.bottom-edgeZone)pcol.scrollTop+=scrollSpeed;
+      if(pcol.scrollWidth>pcol.clientWidth){
+        if(t.clientX<rect.left+edgeZone)pcol.scrollLeft-=scrollSpeed;
+        else if(t.clientX>rect.right-edgeZone)pcol.scrollLeft+=scrollSpeed;
+      }
     }
     // Highlight drop target
     var el=document.elementFromPoint(t.clientX,t.clientY);
@@ -2189,6 +2304,25 @@ function closeGameEdit(){
 }
 
 window.addEventListener('resize',()=>{if(G){drawCourt('my');drawCourt('opp')}});
+// ============================================================
+// iPhone：自チーム／相手の表示切替（iPad / Mac ではボタン自体が非表示）
+// ============================================================
+var mSide='my';
+function setMSide(side){
+  mSide=side==='opp'?'opp':'my';
+  var g=document.getElementById('game');if(g)g.classList.toggle('ms-opp',mSide==='opp');
+  var bm=document.getElementById('mside-my'),bo=document.getElementById('mside-opp');
+  if(bm)bm.classList.toggle('on',mSide==='my');
+  if(bo)bo.classList.toggle('on',mSide==='opp');
+  if(G)requestAnimationFrame(function(){drawCourt('my');drawCourt('opp')});
+}
+function syncMSide(){
+  var bm=document.getElementById('mside-my'),bo=document.getElementById('mside-opp');
+  if(bm)bm.textContent=myTeam.name||'MY';
+  if(bo)bo.textContent=(G&&G.opponent)||'OPP';
+}
+(function(){var _ua=updateAll;updateAll=function(){var r=_ua.apply(this,arguments);syncMSide();return r}})();
+
 load();if(G){selSide='my';selId=null;showScreen('game')}
 
 // ============================================================
@@ -2965,7 +3099,7 @@ onAuthStateChanged(auth,async user=>{
 
 <script>
 // App version — change this to force cache refresh
-var APP_VERSION='2026100901';
+var APP_VERSION='2026100902';
 if('serviceWorker' in navigator){
   // Check version change first
   var lastVer=localStorage.getItem('siq_ver');
