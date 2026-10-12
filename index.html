@@ -65,6 +65,14 @@ input,select{font-family:inherit;outline:none;-webkit-user-select:text;user-sele
 .st-chip{padding:6px 12px;border-radius:6px;background:var(--bg3);border:1px solid var(--brd);font-size:12px;font-weight:600;color:var(--t2);display:flex;align-items:center;gap:6px;transition:var(--tr)}
 .st-chip:hover{border-color:var(--opp);color:var(--opp)}
 .st-chip .st-del{font-size:14px;color:var(--red);opacity:0;transition:var(--tr)}.st-chip:hover .st-del{opacity:1}
+/* 相手チーム管理：保存済みチームをタップで編集 */
+#opp-saved-list .st-chip{cursor:pointer}
+#opp-saved-list .st-chip .st-edit{font-size:11px;color:var(--t3)}
+#opp-saved-list .st-chip.editing{border-color:var(--opp);color:var(--opp);background:var(--bg2)}
+@media (hover:none),(pointer:coarse){.st-chip .st-del{opacity:.75;padding:0 2px}}
+.opp-form-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px}
+.opp-form-head h3{margin:0 !important}
+.opp-new-btn{padding:5px 10px;border-radius:6px;background:var(--bg3);border:1px solid var(--brd);color:var(--t2);font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap}
 
 /* GAME — Pro scoreboard */
 #game{flex-direction:column;height:100vh;background:#0b0f14}
@@ -454,11 +462,14 @@ input,select{font-family:inherit;outline:none;-webkit-user-select:text;user-sele
 <div class="mover" id="opp-modal"><div class="mdl"><h2>相手チーム管理</h2>
   <div id="opp-saved-list"></div>
   <hr style="border:none;border-top:1px solid var(--brd);margin:16px 0">
-  <h3 style="font-family:var(--fd);font-size:16px;color:var(--opp);margin-bottom:12px">新しい相手チームを追加</h3>
+  <div class="opp-form-head">
+    <h3 id="opp-form-title" style="font-family:var(--fd);font-size:16px;color:var(--opp);margin-bottom:12px">新しい相手チームを追加</h3>
+    <button class="opp-new-btn" id="opp-new-btn" onclick="resetOppForm()" style="display:none">＋ 新規追加に戻る</button>
+  </div>
   <label>チーム名</label><input type="text" id="opp-new-name" placeholder="例: △△高校">
   <label>選手一覧</label><div class="ple" id="opp-new-list"></div>
   <button class="apb" onclick="addPR('opp-new-list')">+ 選手を追加</button>
-  <div class="mact"><button class="bs2" onclick="closeM('opp-modal')">閉じる</button><button class="bp" onclick="saveOppTeam()">チームを保存</button></div>
+  <div class="mact"><button class="bs2" onclick="closeM('opp-modal')">閉じる</button><button class="bp" id="opp-save-btn" onclick="saveOppTeam()">チームを保存</button></div>
 </div></div>
 
 <div class="mover" id="ng-modal"><div class="mdl wide"><h2>新しい試合</h2>
@@ -691,25 +702,58 @@ function saveTeam(){
 }
 
 // Opponent Team Manager
+var oppEditIdx=null; // 編集中の保存済み相手チーム（null=新規追加）
 function openOppManager(){
-  renderOppList();
+  resetOppForm();
+  openM('opp-modal');
+}
+function resetOppForm(){
+  oppEditIdx=null;
   const l=document.getElementById('opp-new-list');l.innerHTML='';for(let i=0;i<5;i++)addPR('opp-new-list');
   document.getElementById('opp-new-name').value='';
-  openM('opp-modal');
+  document.getElementById('opp-form-title').textContent='新しい相手チームを追加';
+  document.getElementById('opp-save-btn').textContent='チームを保存';
+  document.getElementById('opp-new-btn').style.display='none';
+  renderOppList();
 }
 function renderOppList(){
   const el=document.getElementById('opp-saved-list');
   if(!oppTeams.length){el.innerHTML='<div style="color:var(--t3);font-size:13px;margin-bottom:8px">保存された相手チームはありません</div>';return}
-  el.innerHTML='<label>保存済みチーム</label><div class="saved-teams">'+oppTeams.map((t,i)=>`<div class="st-chip"><span>${t.name} (${t.players.length}人)</span><span class="st-del" onclick="delOppTeam(${i},event)">✕</span></div>`).join('')+'</div>';
+  el.innerHTML='<label>保存済みチーム <span style="font-weight:400;color:var(--t3)">(タップで選手の追加・編集)</span></label><div class="saved-teams">'+oppTeams.map((t,i)=>`<div class="st-chip${i===oppEditIdx?' editing':''}" onclick="editOppTeam(${i})"><span>${t.name} (${(t.players||[]).length}人)</span><span class="st-edit">✎</span><span class="st-del" onclick="delOppTeam(${i},event)">✕</span></div>`).join('')+'</div>';
+}
+// 保存済みの相手チームを下のフォームに読み込んで編集
+function editOppTeam(i){
+  const t=oppTeams[i];if(!t)return;
+  oppEditIdx=i;
+  document.getElementById('opp-new-name').value=t.name;
+  const l=document.getElementById('opp-new-list');l.innerHTML='';
+  (t.players||[]).forEach((p,k)=>{addPR('opp-new-list',p.number||'',p.name||'');l.lastChild.dataset.oi=k;});
+  for(let k=0;k<2;k++)addPR('opp-new-list'); // 追加用の空欄
+  document.getElementById('opp-form-title').textContent='「'+t.name+'」を編集';
+  document.getElementById('opp-save-btn').textContent='変更を保存';
+  document.getElementById('opp-new-btn').style.display='';
+  renderOppList();
+  const nm=document.getElementById('opp-new-name');if(nm&&nm.scrollIntoView)nm.scrollIntoView({block:'center',behavior:'smooth'});
 }
 function saveOppTeam(){
   const name=document.getElementById('opp-new-name').value.trim();if(!name){alert('チーム名を入力してください');return}
-  const ps=[];document.querySelectorAll('#opp-new-list .pr').forEach(r=>{const i=r.querySelectorAll('input'),n=i[0].value.trim(),nm=i[1].value.trim();if(n||nm)ps.push({number:n,name:nm||('選手'+n)})});
+  const orig=oppEditIdx!==null?oppTeams[oppEditIdx]:null;
+  const ps=[];document.querySelectorAll('#opp-new-list .pr').forEach(r=>{
+    const i=r.querySelectorAll('input'),n=i[0].value.trim(),nm=i[1].value.trim();
+    if(!(n||nm))return;
+    // 既存の選手は元の情報（IDなど）を引き継いで番号・名前だけ更新
+    const base=(orig&&r.dataset.oi!==undefined&&orig.players&&orig.players[+r.dataset.oi])||{};
+    ps.push(Object.assign({},base,{number:n,name:nm||('選手'+n)}));
+  });
   if(!ps.length){alert('選手を1人以上登録してください');return}
-  oppTeams.push({name,players:ps});save();renderOppList();
-  document.getElementById('opp-new-name').value='';document.getElementById('opp-new-list').innerHTML='';for(let i=0;i<5;i++)addPR('opp-new-list');
+  const dup=oppTeams.findIndex((t,k)=>t.name===name&&k!==oppEditIdx);
+  if(dup>=0){alert('「'+name+'」は保存済みです。チーム名を変えるか、そのチームをタップして編集してください');return}
+  if(orig){oppTeams[oppEditIdx]=Object.assign({},orig,{name,players:ps});}
+  else{oppTeams.push({name,players:ps});}
+  save();
+  resetOppForm();
 }
-function delOppTeam(i,e){e.stopPropagation();if(!confirm(`${oppTeams[i].name}を削除しますか？`))return;oppTeams.splice(i,1);save();renderOppList()}
+function delOppTeam(i,e){e.stopPropagation();if(!confirm(`${oppTeams[i].name}を削除しますか？`))return;oppTeams.splice(i,1);save();if(oppEditIdx===i)resetOppForm();else{if(oppEditIdx!==null&&oppEditIdx>i)oppEditIdx--;renderOppList();}}
 
 // New Game
 function openNewGame(){
@@ -3211,7 +3255,7 @@ onAuthStateChanged(auth,async user=>{
 
 <script>
 // App version — change this to force cache refresh
-var APP_VERSION='2026100904';
+var APP_VERSION='2026101301';
 if('serviceWorker' in navigator){
   // Check version change first
   var lastVer=localStorage.getItem('siq_ver');
