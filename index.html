@@ -3258,8 +3258,10 @@ async function fbPush(){
 }
 
 // === LOAD FROM FIRESTORE (on login & online reconnect) ===
+let _fbLoading=false;
 async function fbLoad(){
-  if(!_fbUser)return;
+  if(!_fbUser||_fbLoading)return;
+  _fbLoading=true;
   setSync('saving');
   try{
     const[snap,qs]=await Promise.all([getDoc(metaRef()),getDocs(gamesCol())]);
@@ -3272,8 +3274,10 @@ async function fbLoad(){
     saveSt();
     _loadedOnce=true;
     refreshVisible();
+    _fbLoading=false;
     await fbPush(); // 統合結果をクラウドへ
   }catch(e){reportError('fbLoad',e)}
+  finally{_fbLoading=false}
 }
 
 // 表示中の画面を再描画（ログイン時に履歴・通算を開いていた場合）
@@ -3323,9 +3327,17 @@ window.addEventListener('online',()=>{
 window.addEventListener('offline',()=>{if(_fbUser)setSync('offline')});
 
 // Periodic background push while app is active (every 30s) — 変更がなければ何も書き込まない
+// オフラインで起動してクラウド読み込みが済んでいない場合は、電波が戻った時点で読み込み→統合→送信をやり直す
 setInterval(()=>{
-  if(_fbUser&&_loadedOnce&&!_fbSaving&&!_merging)fbPush();
+  if(!_fbUser||_fbSaving||_merging)return;
+  if(!_loadedOnce){if(navigator.onLine)fbLoad();return}
+  fbPush();
 },30000);
+// iPhone/iPad では online イベントが来ないことがあるため、画面に戻ったときにも同期する
+document.addEventListener('visibilitychange',()=>{
+  if(document.visibilityState!=='visible'||!_fbUser||!navigator.onLine)return;
+  if(!_loadedOnce)fbLoad();else if(!_fbSaving&&!_merging)fbPush();
+});
 
 onAuthStateChanged(auth,async user=>{
   if(_fbUser&&user&&_fbUser.uid===user.uid)return; // skip re-fire for same user
@@ -3345,7 +3357,7 @@ onAuthStateChanged(auth,async user=>{
 
 <script>
 // App version — change this to force cache refresh
-var APP_VERSION='2026101901';
+var APP_VERSION='2026112401';
 if('serviceWorker' in navigator){
   // Check version change first
   var lastVer=localStorage.getItem('siq_ver');
