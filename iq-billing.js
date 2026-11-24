@@ -241,6 +241,8 @@
       var q = 'uid=' + encodeURIComponent(state.user.uid);
       if (state.user.email) q += '&email=' + encodeURIComponent(state.user.email);
       var r = await fetch(cfg.apiBase + '/api/check-subscription?' + q, { cache: 'no-store' });
+      // オフライン時はSWが 503 '{}' を返す。成功扱いにすると契約者がFREEになり端末の控えも消えるため失敗扱いにする
+      if (!r.ok) throw new Error('check-subscription HTTP ' + r.status);
       var d = await r.json();
       state.plan = d.plan || 'free';
       state.source = d.source || (state.plan === 'pro' ? 'stripe' : null);
